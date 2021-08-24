@@ -2,6 +2,8 @@ pub mod utils;
 mod model;
 mod services;
 
+use grpc::api::vault_server::VaultServer;
+use grpc::admin::admin_server::AdminServer;
 use utils::errors::VaultError;
 use utils::mongo;
 use dotenv::dotenv;
@@ -11,7 +13,6 @@ use tonic::transport::Server;
 use services::ServiceContext;
 use crate::model::policy::PolicyDB;
 use utils::config::{Configuration, self};
-use grpc::password_service_server::PasswordServiceServer;
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, util::SubscriberInitExt};
 
@@ -19,15 +20,22 @@ use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, 
 use utils::kafka;
 
 pub mod grpc {
-    tonic::include_proto!("grpc");
+    pub mod common {
+        tonic::include_proto!("grpc.common");
+    }
+
+    pub mod api {
+        tonic::include_proto!("grpc.vault");
+    }
+
+    pub mod admin {
+        tonic::include_proto!("grpc.admin");
+    }
 }
 
 const APP_NAME: &str = "Vault";
 
-//#[tokio::main]
-// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn lib_main() -> Result<(), VaultError> {
-    // TODO: Move all this into an init_everything.
 
     // Load any local dev settings as environment variables from a .env file.
     dotenv().ok();
@@ -61,10 +69,10 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let active_policy = Arc::new(RwLock::new(PolicyDB::load_active(db.clone()).await?));
 
     // The service context allows any gRPC service access to shared stuff (databases, notification producers, etc.).
-    let service_context = ServiceContext::new(
+    let service_context = Arc::new(ServiceContext::new(
         config.clone(),
         db.clone(),
-        active_policy.clone());
+        active_policy.clone()));
 
     // Spawn a consumer to monitor the active policy changes from other instances.
     #[cfg(feature = "kafka")]
@@ -75,7 +83,8 @@ pub async fn lib_main() -> Result<(), VaultError> {
     tracing::info!("{} listening on {}", APP_NAME, addr);
 
     Server::builder()
-        .add_service(PasswordServiceServer::new(service_context))
+        .add_service(VaultServer::new(service_context.clone()))
+        .add_service(AdminServer::new(service_context.clone()))
         .serve(addr)
         .await?;
 
@@ -125,9 +134,6 @@ fn init_tracing(config: &Configuration) -> bool {
         }
     }
 }
-
-
-
 
 const BANNER: &str = r#"
 ____   ____            .__   __

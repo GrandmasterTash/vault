@@ -1,10 +1,10 @@
 use std::fs;
-use mongodb::error::ErrorKind;
 use uuid::Uuid;
 use chrono::Utc;
 use serde::Serialize;
 use tracing::{debug, info};
 use super::errors::VaultError;
+use mongodb::error::ErrorKind;
 use crate::model::policy::PolicyDB;
 use crate::utils::errors::ErrorCode;
 use crate::utils::{config::Configuration};
@@ -69,11 +69,10 @@ pub fn is_duplicate_err(err: &mongodb::error::Error) -> bool {
 /// Create the default config document IF IT DOESN'T EXIST.
 ///
 async fn create_default_config(db: &Database) -> Result<(), VaultError> {
-    let now = Utc::now(); // TODO: Use timeprovider (for testing)
     let doc = doc!{
         "config_id": "SINGLETON",
         "active_policy_id": "DEFAULT",
-        "actived_on": bson::DateTime::from_chrono(now)
+        "actived_on": bson::DateTime::from_chrono(Utc::now())
     };
 
     let _ignored = db.collection::<Document>("Config").insert_one(doc, None).await;

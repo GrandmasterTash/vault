@@ -1,16 +1,15 @@
 use super::ServiceContext;
 use bson::{Document, doc};
-use chrono::Utc;
 use tonic::{Request, Response, Status};
-use crate::{utils::{errors::VaultError, mongo}, grpc::{HashRequest, HashResponse}};
+use crate::{utils::{errors::VaultError, mongo}, grpc::api};
 
 ///
 /// Validate the password against the current password policy.
 ///
 /// If it's okay, update or create the password specified.
 ///
-pub async fn hash_password(ctx: &ServiceContext, request: Request<HashRequest>)
-    -> Result<Response<HashResponse>, Status> {
+pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashRequest>)
+    -> Result<Response<api::HashResponse>, Status> {
 
     let hash_request = request.into_inner();
 
@@ -26,7 +25,6 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<HashRequest>)
     // perform it in the blocking thread pool not on the main event loop.
     let policy = { ctx.active_policy.read().clone() };
     let plain_text_password = hash_request.plain_text_password.clone();
-    // let phc = policy.hash_into_phc(&hash_request.plain_text_password)?;
     let phc = tokio::task::spawn_blocking(move || { policy.hash_into_phc(&plain_text_password) })
         .await
         .map_err(|e| VaultError::from(e))?
@@ -42,7 +40,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<HashRequest>)
         "$set": {
             "password_id": &password_id,
             "phc": phc,
-            "changed_on": bson::DateTime::from_chrono(Utc::now()),  // TODO: Use a timeprovider.
+            "changed_on": bson::DateTime::from_chrono(ctx.now()),
         }
     };
 
@@ -50,13 +48,13 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<HashRequest>)
         .await
         .map_err(|e| VaultError::from(e))?;
 
-    Ok(Response::new(HashResponse { password_id }))
+    Ok(Response::new(api::HashResponse { password_id }))
 }
 
 ///
 /// Check the password doesn't violate the active policy.
 ///
-fn validate_password(ctx: &ServiceContext, request: &HashRequest) -> Result<(), VaultError> {
+fn validate_password(ctx: &ServiceContext, request: &api::HashRequest) -> Result<(), VaultError> {
     let policy = ctx.active_policy.read();
     policy.validate_pattern(&request.plain_text_password)?;
     Ok(())

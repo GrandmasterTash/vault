@@ -1,36 +1,32 @@
 syntax = "proto3";
-
-// TODO: Consider renaming vault.
-package grpc;
+import "common.proto";
+package grpc.vault;
 
 // TODO: gRPC over TLS? All these calls should be using that really.
 // TODO: Arbtrary password 'types'. Active policy per type. That would support PINs and passwords.
 
-// TODO: Rename vault service.
-service PasswordService {
-    // TODO: Replace this with https://github.com/hyperium/tonic/tree/master/examples/src/health
-    rpc Ping (Empty) returns (Empty) {}
+service Vault {
     // TODO: Document.
     // Maintenance orientated.
     rpc CreatePasswordPolicy (CreatePolicyRequest) returns (CreatePolicyResponse) {}
-    rpc GetActivePolicy (Empty) returns (GetActivePolicyResponse) {}
-    rpc MakeActive (MakeActiveRequest) returns (Empty) {}
-    rpc GetPolicies (Empty) returns (GetPoliciesResponse) {}
+    rpc GetActivePolicy (common.Empty) returns (GetActivePolicyResponse) {}
+    rpc MakeActive (MakeActiveRequest) returns (common.Empty) {}
+    rpc GetPolicies (common.Empty) returns (GetPoliciesResponse) {}
     rpc ImportPasswords (stream ImportPasswordRequest) returns (stream ImportPasswordResponse) {}
-    rpc InvalidatePassword (InvalidateRequest) returns (Empty) {} // Mark a password as needing to be changed
+    rpc InvalidatePassword (InvalidateRequest) returns (common.Empty) {} // Mark a password as needing to be changed
     rpc DeletePassword (DeleteRequest) returns (DeleteResponse) {}
     rpc DeletePasswords (stream DeleteRequest) returns (stream DeleteResponse) {}
 
     // User orientated (never expose to direct clients though!).
     rpc HashPassword (HashRequest) returns (HashResponse) {} // Create or overwrite an existing password.
     rpc ValidatePassword (ValidateRequest) returns (ValidateResponse) {}
-    rpc ChangePassword (ChangeRequest) returns (Empty) {} // when existing is known but must be rotated or is no-longer valid.
+    rpc ChangePassword (ChangeRequest) returns (common.Empty) {} // when existing is known but must be rotated or is no-longer valid.
     rpc StartResetPassword (StartResetRequest) returns (StartResetResponse) {} // 2-phase for when existing is forgotten.
-    rpc CompleteResetPassword (CompleteResetRequest) returns (Empty) {}
+    rpc CompleteResetPassword (CompleteResetRequest) returns (common.Empty) {}
 
 }
 
-message Empty {}
+// message Empty {}
 
 message CreatePolicyRequest {
     Policy policy = 1;

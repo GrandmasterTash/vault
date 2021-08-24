@@ -1,12 +1,9 @@
-use tokio_retry::Retry;
 use lazy_static::lazy_static;
 use tonic::transport::Channel;
-use tokio_retry::strategy::ExponentialBackoff;
+use tokio_retry::{Retry, strategy::FixedInterval};
+use std::{collections::HashMap, thread::JoinHandle};
 use parking_lot::{Mutex, RawMutex, lock_api::MutexGuard};
-use vault::grpc::password_service_client::PasswordServiceClient;
-use std::{collections::HashMap, thread::JoinHandle, time::Duration};
-
-const THIRTY_SECONDS: Duration = Duration::from_secs(30);
+use vault::grpc::{admin::admin_client::AdminClient, api::vault_client::VaultClient};
 
 lazy_static! {
     // A mutex around the TestContext to ensure only one test can be using the service at a time.
@@ -34,12 +31,17 @@ lazy_static! {
 pub struct TestContext {
     config: TestConfig,
     handle: Option<JoinHandle<()>>,
-    client: Option<PasswordServiceClient<Channel>>,
+    client: Option<VaultClient<Channel>>,
+    admin: Option<AdminClient<Channel>>,
 }
 
 impl TestContext {
-    pub fn client(&mut self) -> &mut PasswordServiceClient<Channel> {
+    pub fn client(&mut self) -> &mut VaultClient<Channel> {
         self.client.as_mut().expect("Someone asked for a test client when there wasn't one")
+    }
+
+    pub fn admin(&mut self) -> &mut AdminClient<Channel> {
+        self.admin.as_mut().expect("Someone asked for a test admin client when there wasn't one")
     }
 }
 
@@ -48,6 +50,7 @@ impl Default for TestContext {
         Self {
             handle: None,
             client: None,
+            admin: None,
             config: Default::default()
         }
     }
@@ -131,25 +134,38 @@ pub async fn start_vault(config: TestConfig) -> MutexGuard<'static, RawMutex, Te
                 vault::lib_main().await
             });
         }));
+
+    } else {
+        // If the server was running, reset any fixed clock that a previous test may have applied.
+        // lock.admin().reset_time(Request::new(common::Empty::default()))
+        //     .await
+        //     .unwrap();
     }
 
     // Connect a test client to the service - the closure is used in retry spawn below.
     let port = lock.config.get("PORT");
     let connect = move || {
-        // TODO: Use localhost
-        // PasswordServiceClient::connect(format!("http://172.26.40.239:{}", port))
-        // PasswordServiceClient::connect(format!("http://localhost:{}", port))
-        PasswordServiceClient::connect(format!("http://[::]:{}", port))
+        VaultClient::connect(format!("http://[::]:{}", port))
     };
 
-    let client = Retry::spawn(ExponentialBackoff::from_millis(1000).max_delay(THIRTY_SECONDS), connect)
+    // Try to connect for up-to 1 minute.
+    let client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
         .await
         .expect("Unable to connect test client to server under test");
 
-    // TODO: May need to probe the healthcheck until it's healthy.
+    // Need to establish an admin client too.
+    let connect = move || {
+        AdminClient::connect(format!("http://[::]:{}", port))
+    };
 
-    // Put the client in the TestBundle struct for the test to use.
+    // Try to connect for up-to 1 minute.
+    let admin_client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+        .await
+        .expect("Unable to connect admin test client to server under test");
+
+    // Put the clients in the TestContext struct for the test to use.
     lock.client = Some(client);
+    lock.admin = Some(admin_client);
 
     lock
 }

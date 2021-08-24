@@ -50,8 +50,7 @@ parking_lot = "0.11.1"
 # For gRPC
 tonic = "0.5.2"
 prost = "0.8"
-#tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-tokio = { version = "1.0", features = ["macros", "rt"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 # For stream request / response.
 futures = { version = "0.3.15", default-features = false, features = ["alloc"] }
 

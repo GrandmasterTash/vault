@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use bson::Document;
 use chrono::Utc;
+use crate::grpc::api;
 use serde::{Deserialize, Serialize};
 use mongodb::{Database, bson::doc};
-use crate::{utils::errors::ErrorCode};
+use crate::utils::errors::ErrorCode;
 use super::algorthm::{Algorthm, ArgonPolicyDB, BcryptPolicyDB, PBKDF2PolicyDB};
-use crate::{utils::{errors::VaultError,}, grpc::*};
+use crate::utils::errors::VaultError;
 
 // Rename the grpc structs to end in API.
 // Rename the DB structs to drop the DB bit.
@@ -34,6 +35,37 @@ pub struct PolicyDB {
     pub bcrypt_policy: Option<BcryptPolicyDB>,
     pub pbkdf2_policy: Option<PBKDF2PolicyDB>,
     pub prohibited_phrases: Vec<String>,
+}
+
+impl Default for PolicyDB {
+    fn default() -> Self {
+        PolicyDB {
+            policy_id: String::from("DEFAULT"),
+            created_on: bson::DateTime::from_chrono(Utc::now()), // TODO: singleton TimeProvider.
+            max_history_length: 5,
+            max_age_days: 30,
+            min_length: 8,
+            max_length: 128,
+            max_character_repeat: 2,
+            min_letters: 1,
+            max_letters: 128,
+            min_numbers: 1,
+            max_numbers: 128,
+            min_symbols: 1,
+            max_symbols: 128,
+            max_failures: 3,
+            lockout_seconds: 60,
+            reset_timeout_seconds: 5 * 60,
+            mixed_case_required: true,
+            algorthm_type: Algorthm::Argon,
+            argon_policy: Some(ArgonPolicyDB::default()),
+            bcrypt_policy: None,
+            pbkdf2_policy: None,
+            prohibited_phrases: vec!(
+                "password".to_string(),
+                "qwerty".to_string()),
+        }
+    }
 }
 
 impl PolicyDB {
@@ -186,41 +218,10 @@ impl PolicyDB {
     }
 }
 
-impl Default for PolicyDB {
-    fn default() -> Self {
-        PolicyDB {
-            policy_id: String::from("DEFAULT"),
-            created_on: bson::DateTime::from_chrono(Utc::now()), // TODO: singleton TimeProvider.
-            max_history_length: 5,
-            max_age_days: 30,
-            min_length: 8,
-            max_length: 128,
-            max_character_repeat: 2,
-            min_letters: 1,
-            max_letters: 128,
-            min_numbers: 1,
-            max_numbers: 128,
-            min_symbols: 1,
-            max_symbols: 128,
-            max_failures: 3,
-            lockout_seconds: 10 * 60,
-            reset_timeout_seconds: 5 * 60,
-            mixed_case_required: true,
-            algorthm_type: Algorthm::Argon,
-            argon_policy: Some(ArgonPolicyDB::default()),
-            bcrypt_policy: None,
-            pbkdf2_policy: None,
-            prohibited_phrases: vec!(
-                "password".to_string(),
-                "qwerty".to_string()),
-        }
-    }
-}
-
 // TODO: impl From<grpc::Policy> for PolicyDB
 
-impl From<Policy> for bson::Document {
-    fn from(policy: Policy) -> Self {
+impl From<api::Policy> for bson::Document {
+    fn from(policy: api::Policy) -> Self {
         let mut doc = doc!{
             "max_history_length": policy.max_history_length,
             "max_age_days": policy.max_age_days,
@@ -242,7 +243,7 @@ impl From<Policy> for bson::Document {
 
         if let Some(algorthm) = policy.algorthm {
             match &algorthm {
-                policy::Algorthm::ArgonPolicy(algorthm)  => {
+                api::policy::Algorthm::ArgonPolicy(algorthm)  => {
                     doc.insert("algorthm_type", Algorthm::Argon.to_string());
                     doc.insert("argon_policy",
                         doc!{
@@ -254,7 +255,7 @@ impl From<Policy> for bson::Document {
                             "hash_type": algorthm.hash_type
                         });
                 },
-                policy::Algorthm::BcyrptPolicy(algorthm) => {
+                api::policy::Algorthm::BcyrptPolicy(algorthm) => {
                     doc.insert("algorthm_type", Algorthm::BCrypt.to_string());
                     doc.insert("bcrypt_policy",
                         doc!{
@@ -262,7 +263,7 @@ impl From<Policy> for bson::Document {
                             "cost": algorthm.cost
                         });
                 },
-                policy::Algorthm::Pbkfd2Policy(algorthm) => {
+                api::policy::Algorthm::Pbkfd2Policy(algorthm) => {
                     doc.insert("algorthm_type", Algorthm::PBKDF2.to_string());
                     doc.insert("pbkfd2_policy",
                         doc!{

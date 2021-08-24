@@ -1,0 +1,17 @@
+syntax = "proto3";
+// import "google/protobuf/empty.proto"; // Could use google.protobuf.Empty.
+import "common.proto";
+package grpc.admin;
+
+service Admin {
+    // TODO: Replace this with https://github.com/hyperium/tonic/tree/master/examples/src/health
+    rpc Ping (common.Empty) returns (common.Empty) {}
+
+    // Time provider for tests.
+    rpc SetTime (NewTime) returns (common.Empty) {}
+    rpc ResetTime (common.Empty) returns (common.Empty) {}
+}
+
+message NewTime {
+    string new_time = 1; // ISO8601(milli-sec precision)
+}
