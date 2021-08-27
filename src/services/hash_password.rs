@@ -1,7 +1,7 @@
 use super::ServiceContext;
 use bson::{Document, doc};
 use tonic::{Request, Response, Status};
-use crate::{utils::{errors::VaultError, mongo}, grpc::api};
+use crate::{grpc::api, utils::{errors::VaultError, mongo}};
 
 ///
 /// Validate the password against the current password policy.
@@ -23,7 +23,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 
     // Hash new password with a snapshot of the current policy. This is a highly CPU-bound activity so
     // perform it in the blocking thread pool not on the main event loop.
-    let policy = { ctx.active_policy.read().clone() };
+    let policy = { ctx.active_policy().policy.clone() };
     let plain_text_password = hash_request.plain_text_password.clone();
     let phc = tokio::task::spawn_blocking(move || { policy.hash_into_phc(&plain_text_password) })
         .await
@@ -44,7 +44,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
         }
     };
 
-    ctx.db.collection::<Document>("Passwords").update_one(filter, update, mongo::upsert())
+    ctx.db().collection::<Document>("Passwords").update_one(filter, update, mongo::upsert())
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -55,7 +55,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 /// Check the password doesn't violate the active policy.
 ///
 fn validate_password(ctx: &ServiceContext, request: &api::HashRequest) -> Result<(), VaultError> {
-    let policy = ctx.active_policy.read();
-    policy.validate_pattern(&request.plain_text_password)?;
+    let active_policy = ctx.active_policy();
+    active_policy.policy.validate_pattern(&request.plain_text_password)?;
     Ok(())
 }

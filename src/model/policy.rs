@@ -1,15 +1,26 @@
-use std::collections::HashMap;
-use bson::Document;
 use chrono::Utc;
+use chrono::DateTime;
 use crate::grpc::api;
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use crate::model::config::Config;
 use mongodb::{Database, bson::doc};
-use crate::utils::errors::ErrorCode;
+use super::algorthm::ArgonHashType;
+use serde::{Deserialize, Serialize};
+use crate::model::config::prelude::*;
+use crate::utils::errors::{ErrorCode, VaultError};
+use crate::services::context::{ActivePolicy, ServiceContext};
 use super::algorthm::{Algorthm, ArgonPolicyDB, BcryptPolicyDB, PBKDF2PolicyDB};
-use crate::utils::errors::VaultError;
 
-// Rename the grpc structs to end in API.
-// Rename the DB structs to drop the DB bit.
+///
+/// A notification sent between instances of Vault to signify the active policy has changed.
+///
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PolicyActivated {
+    pub policy_id: String,
+    pub activated_on: DateTime<Utc>,
+}
+
+// TODO: Rename the DB structs to drop the DB bit.
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PolicyDB {
@@ -31,7 +42,7 @@ pub struct PolicyDB {
     pub reset_timeout_seconds: u32,
     pub mixed_case_required: bool,
     pub algorthm_type: Algorthm,
-    pub argon_policy: Option<ArgonPolicyDB>,
+    pub argon_policy:  Option<ArgonPolicyDB>,
     pub bcrypt_policy: Option<BcryptPolicyDB>,
     pub pbkdf2_policy: Option<PBKDF2PolicyDB>,
     pub prohibited_phrases: Vec<String>,
@@ -40,8 +51,8 @@ pub struct PolicyDB {
 impl Default for PolicyDB {
     fn default() -> Self {
         PolicyDB {
-            policy_id: String::from("DEFAULT"),
-            created_on: bson::DateTime::from_chrono(Utc::now()), // TODO: singleton TimeProvider.
+            policy_id: DEFAULT.to_string(),
+            created_on: bson::DateTime::from_chrono(Utc::now()),
             max_history_length: 5,
             max_age_days: 30,
             min_length: 8,
@@ -69,31 +80,6 @@ impl Default for PolicyDB {
 }
 
 impl PolicyDB {
-    // TODO: Move these load methods out of here - to where they are called from.
-    #[cfg(feature = "kafka")]
-    pub async fn load(policy_id: &str, db: Database) -> Result<Self, VaultError> {
-        match db.collection::<PolicyDB>("Policies").find_one(doc!{ "policy_id": policy_id }, None).await? {
-            Some(policy) => Ok(policy),
-            None => return Err(ErrorCode::PolicyNotFound.with_msg(&format!("The policy {} does not exist", policy_id))),
-        }
-    }
-
-    ///
-    /// Using the Config singleton document in the database, load and return the current active password policy.
-    ///
-    pub async fn load_active(db: Database) -> Result<Self, VaultError> {
-        let config = db.collection::<Document>("Config").find_one(doc!{ "config_id": "SINGLETON" }, None).await?;
-        let active_policy_id = match &config {
-            Some(config) => config.get_str("active_policy_id")?,
-            None => return Err(ErrorCode::ConfigDocumentNotFound.with_msg("The config document was not found")),
-        };
-
-        match db.collection::<PolicyDB>("Policies").find_one(doc!{ "policy_id": active_policy_id }, None).await? {
-            Some(policy) => Ok(policy),
-            None => return Err(ErrorCode::ActivePolicyNotFound.with_msg(&format!("The configured active policy '{}' was not found", active_policy_id))),
-        }
-    }
-
     ///
     /// Check the plain text password doesn't violate this policies format.
     ///
@@ -218,61 +204,188 @@ impl PolicyDB {
     }
 }
 
-// TODO: impl From<grpc::Policy> for PolicyDB
-
-impl From<api::Policy> for bson::Document {
-    fn from(policy: api::Policy) -> Self {
-        let mut doc = doc!{
-            "max_history_length": policy.max_history_length,
-            "max_age_days": policy.max_age_days,
-            "min_length": policy.min_length,
-            "max_length": policy.max_length,
-            "max_character_repeat": policy.max_character_repeat,
-            "min_letters": policy.min_letters,
-            "max_letters": policy.max_letters,
-            "min_numbers": policy.min_numbers,
-            "max_numbers": policy.max_numbers,
-            "min_symbols": policy.min_symbols,
-            "max_symbols": policy.max_symbols,
-            "mixed_case_required": policy.mixed_case_required,
-            "max_failures": policy.max_failures,
-            "lockout_seconds": policy.lockout_seconds,
-            "reset_timeout_seconds": policy.reset_timeout_seconds,
-            "prohibited_phrases": policy.prohibited_phrases,
-        };
-
-        if let Some(algorthm) = policy.algorthm {
-            match &algorthm {
-                api::policy::Algorthm::ArgonPolicy(algorthm)  => {
-                    doc.insert("algorthm_type", Algorthm::Argon.to_string());
-                    doc.insert("argon_policy",
-                        doc!{
-                            "parallelism": algorthm.parallelism,
-                            "tag_length": algorthm.tag_length,
-                            "memory_size_kb": algorthm.memory_size_kb,
-                            "iterations": algorthm.iterations,
-                            "version": algorthm.version,
-                            "hash_type": algorthm.hash_type
-                        });
-                },
-                api::policy::Algorthm::BcyrptPolicy(algorthm) => {
-                    doc.insert("algorthm_type", Algorthm::BCrypt.to_string());
-                    doc.insert("bcrypt_policy",
-                        doc!{
-                            "version": algorthm.version.clone(),
-                            "cost": algorthm.cost
-                        });
-                },
-                api::policy::Algorthm::Pbkfd2Policy(algorthm) => {
-                    doc.insert("algorthm_type", Algorthm::PBKDF2.to_string());
-                    doc.insert("pbkfd2_policy",
-                        doc!{
-                            "cost": algorthm.cost
-                        });
-                }
+impl From<PolicyDB> for api::Policy {
+    fn from(policy: PolicyDB) -> Self {
+        api::Policy {
+            policy_id:             policy.policy_id.clone(),
+            created_on:            policy.created_on.timestamp_millis() as u64,
+            max_history_length:    policy.max_history_length,
+            max_age_days:          policy.max_age_days,
+            min_length:            policy.min_length,
+            max_length:            policy.max_length,
+            max_character_repeat:  policy.max_character_repeat,
+            min_letters:           policy.min_letters,
+            max_letters:           policy.max_letters,
+            min_numbers:           policy.min_numbers,
+            max_numbers:           policy.max_numbers,
+            min_symbols:           policy.min_symbols,
+            max_symbols:           policy.max_symbols,
+            max_failures:          policy.max_failures,
+            lockout_seconds:       policy.lockout_seconds,
+            mixed_case_required:   policy.mixed_case_required,
+            reset_timeout_seconds: policy.reset_timeout_seconds,
+            prohibited_phrases:    policy.prohibited_phrases.iter().cloned().collect(),
+            algorthm:              match policy.algorthm_type {
+                Algorthm::Argon => Some(api::policy::Algorthm::ArgonPolicy(api::ArgonPolicy {
+                    parallelism:    policy.argon_policy().parallelism,
+                    tag_length:     policy.argon_policy().tag_length,
+                    memory_size_kb: policy.argon_policy().memory_size_kb,
+                    iterations:     policy.argon_policy().iterations,
+                    version:        policy.argon_policy().version,
+                    hash_type:      match policy.argon_policy().hash_type {
+                        ArgonHashType::ARGON2D  => 0,
+                        ArgonHashType::ARGON2I  => 1,
+                        ArgonHashType::ARGON2ID => 2,
+                    },
+                })),
+                Algorthm::BCrypt => todo!(),
+                Algorthm::PBKDF2 => todo!(),
             }
         }
+    }
+}
 
-        doc
+impl From<PolicyDB> for Option<api::Policy> {
+    fn from(policy: PolicyDB) -> Self {
+        Some(policy.into())
+    }
+}
+
+impl From<api::Policy> for PolicyDB {
+    fn from(policy: api::Policy) -> Self {
+        PolicyDB {
+            policy_id:             policy.policy_id,
+            created_on:            bson::DateTime::from_millis(policy.created_on as i64),
+            max_history_length:    policy.max_history_length,
+            max_age_days:          policy.max_age_days,
+            min_length:            policy.min_length,
+            max_length:            policy.max_length,
+            max_character_repeat:  policy.max_character_repeat,
+            min_letters:           policy.min_letters,
+            max_letters:           policy.max_letters,
+            min_numbers:           policy.min_numbers,
+            max_numbers:           policy.max_numbers,
+            min_symbols:           policy.min_symbols,
+            max_symbols:           policy.max_symbols,
+            max_failures:          policy.max_failures,
+            lockout_seconds:       policy.lockout_seconds,
+            reset_timeout_seconds: policy.reset_timeout_seconds,
+            mixed_case_required:   policy.mixed_case_required,
+            algorthm_type:         policy.algorthm.as_ref().into(),
+            argon_policy:          match &policy.algorthm {
+                                       Some(argon) => argon.into(),
+                                       None        => None,
+                                   },
+            bcrypt_policy:         match &policy.algorthm {
+                                       Some(bcrypt) => bcrypt.into(),
+                                       None         => None,
+                                   },
+            pbkdf2_policy:         match &policy.algorthm {
+                                       Some(pbkdf2) => pbkdf2.into(),
+                                       None         => None,
+                                   },
+            prohibited_phrases:    policy.prohibited_phrases,
+        }
+    }
+}
+
+impl From<Option<&api::policy::Algorthm>> for Algorthm {
+    fn from(alogrithm: Option<&api::policy::Algorthm>) -> Self {
+        match alogrithm.expect("No algorithm on the policy") { // Validated against in create_policy
+            api::policy::Algorthm::ArgonPolicy(_)  => Algorthm::Argon,
+            api::policy::Algorthm::BcyrptPolicy(_) => Algorthm::BCrypt,
+            api::policy::Algorthm::Pbkfd2Policy(_) => Algorthm::PBKDF2,
+        }
+    }
+}
+
+impl From<&api::policy::Algorthm> for Option<ArgonPolicyDB> {
+    fn from(alogrithm: &api::policy::Algorthm) -> Self {
+        match alogrithm {
+            api::policy::Algorthm::ArgonPolicy(argon) => {
+                Some(ArgonPolicyDB{
+                    parallelism:    argon.parallelism,
+                    tag_length:     argon.tag_length,
+                    memory_size_kb: argon.memory_size_kb,
+                    iterations:     argon.iterations,
+                    version:        argon.version,
+                    hash_type:      match argon.hash_type {
+                        0 => ArgonHashType::ARGON2D,
+                        1 => ArgonHashType::ARGON2I,
+                        2 => ArgonHashType::ARGON2ID,
+                        unknown @ _ => panic!("Unhandled protobuf argon hash_type {}", unknown)
+                    },
+                })
+            },
+            api::policy::Algorthm::BcyrptPolicy(_) => None,
+            api::policy::Algorthm::Pbkfd2Policy(_) => None,
+        }
+    }
+}
+
+impl From<&api::policy::Algorthm> for Option<BcryptPolicyDB> {
+    fn from(alogrithm: &api::policy::Algorthm) -> Self {
+        match alogrithm {
+            api::policy::Algorthm::ArgonPolicy(_)  => None,
+            api::policy::Algorthm::BcyrptPolicy(bcrypt) => {
+                Some(BcryptPolicyDB {
+                    version: bcrypt.version.clone(),
+                    cost:    bcrypt.cost,
+                })
+            },
+            api::policy::Algorthm::Pbkfd2Policy(_) => None,
+        }
+    }
+}
+
+impl From<&api::policy::Algorthm> for Option<PBKDF2PolicyDB> {
+    fn from(alogrithm: &api::policy::Algorthm) -> Self {
+        match alogrithm {
+            api::policy::Algorthm::ArgonPolicy(_)  => None,
+            api::policy::Algorthm::BcyrptPolicy(_) => None,
+            api::policy::Algorthm::Pbkfd2Policy(pbkfd2) => Some(PBKDF2PolicyDB { cost: pbkfd2.cost }),
+        }
+    }
+}
+
+
+#[cfg(feature = "kafka")] // TODO: This cfg is temp
+pub async fn load(policy_id: &str, ctx: &ServiceContext) -> Result<PolicyDB, VaultError> {
+    let result = ctx.db()
+        .collection::<PolicyDB>("Policies")
+        .find_one(doc!{ "policy_id": policy_id }, None)
+        .await?;
+
+    match result {
+        Some(policy) => Ok(policy),
+        None => return Err(ErrorCode::PolicyNotFound.with_msg(&format!("The policy {} does not exist", policy_id))),
+    }
+}
+
+
+///
+/// Using the Config singleton document in the database, load and return the current active password policy.
+///
+pub async fn load_active(db: &Database) -> Result<ActivePolicy, VaultError> {
+    tracing::info!("Loading current config...");
+
+    let config = db.collection::<Config>("Config")
+        .find_one(doc!{ "config_id": SINGLETON }, None)
+        .await?
+        .expect("Unable to load the configuration from the database");
+
+    tracing::info!("Loading active policy...");
+
+    let active_policy_id = &config.active_policy_id;
+    let result = db.collection::<PolicyDB>("Policies")
+        .find_one(doc!{ "policy_id": active_policy_id }, None).await?;
+
+    tracing::info!("Loaded active policy");
+
+    match result {
+        Some(policy) => Ok(ActivePolicy { policy, activated_on: config.activated_on.into() }),
+
+        None => return Err(ErrorCode::ActivePolicyNotFound
+            .with_msg(&format!("The configured active policy '{}' was not found", active_policy_id))),
     }
 }

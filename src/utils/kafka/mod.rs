@@ -9,6 +9,8 @@ use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicRe
 /// Pre-create any topics we want to subscribe to - seems to be an issue in the driver and auto-create doesn't work.
 ///
 pub async fn create_topics(config: &Configuration) {
+    tracing::info!("Creating kafka topics {:?}", consumer::CONSUMER_TOPICS);
+
     let admin_client = create_admin_client(config);
     let opts = AdminOptions::new().operation_timeout(Some(Duration::from_millis(config.kafka_timeout as u64)));
 

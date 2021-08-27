@@ -1,13 +1,15 @@
 use std::ops::Range;
 use serde_json::json;
 use super::ServiceContext;
-use crate::utils::{errors::ErrorCode, mongo};
+use crate::services::make_active;
 use tonic::{Request, Response, Status};
+use crate::model::policy::PolicyDB;
+use crate::utils::{errors::ErrorCode, mongo};
 use crate::{utils::errors::VaultError, grpc::api};
-use mongodb::bson::{doc, Document};
 
 const ARGON_PARALELLISM: Range<u32> = 1..2^24;
 const ARGON_TAG_LENGTH:  Range<u32> = 4..2^32;
+// const V1: u8 = 1;
 
 ///
 /// Create and potentially activates a new password policy. The policy is used to enforce password
@@ -17,43 +19,25 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
     -> Result<Response<api::CreatePolicyResponse>, Status> {
 
     // Validate the request.
-    let (policy, activate) = validate_request(request.into_inner())?;
+    let (api_policy, activate) = validate_request(request.into_inner())?;
 
     // Generated field values.
     let policy_id = mongo::generate_id();
     let now = ctx.now();
 
     // Create the policy in the db.
-    let mut doc: bson::Document = policy.into(); // TODO: Change to PolicyDB not doc....
-    doc.insert("policy_id", policy_id.clone());
-    doc.insert("created_on", bson::DateTime::from_chrono(now));
+    let mut policy: PolicyDB = api_policy.into();
+    policy.policy_id = policy_id.clone();
+    policy.created_on = bson::DateTime::from_chrono(now);
 
-    ctx.db.collection("Policies").insert_one(doc.clone(), None)
+    ctx.db().collection::<PolicyDB>("Policies").insert_one(policy.clone(), None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
-    ctx.send("password.policy.created", json!(doc), 1).await?;
+    ctx.send("password.policy.created", json!(policy), 1).await?;
 
     if activate {
-        let filter = doc! {
-            "config_id": "SINGLETON"
-        };
-
-        let update = doc!{
-            "$set": {
-                "active_policy_id": policy_id.clone(),
-                "actived_on": bson::DateTime::from_chrono(now)
-            }
-        };
-
-        ctx.db.collection::<Document>("Config").update_one(filter, update, mongo::upsert())
-            .await
-            .map_err(|e| VaultError::from(e))?;
-
-        ctx.send(
-            "password.policy.activated",
-            json!({ "active_policy_id": policy_id }),
-            1).await?;
+        make_active::make_active_by_id(&policy_id, ctx).await?;
     }
 
     Ok(Response::new(api::CreatePolicyResponse { policy_id }))
@@ -63,6 +47,8 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
 /// Validate the request and return the innards if it's okay.
 ///
 fn validate_request(request: api::CreatePolicyRequest) -> Result<(api::Policy, bool), VaultError> {
+    // TODO: Reject if a policy_id is being provided.
+
     let policy = match request.policy {
         Some(policy) => policy,
         None => return Err(ErrorCode::PolicyMandatory.with_msg("Please provide a policy"))

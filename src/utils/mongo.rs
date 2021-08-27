@@ -1,10 +1,10 @@
 use std::fs;
 use uuid::Uuid;
-use chrono::Utc;
 use serde::Serialize;
 use tracing::{debug, info};
 use super::errors::VaultError;
 use mongodb::error::ErrorKind;
+use crate::model::config::Config;
 use crate::model::policy::PolicyDB;
 use crate::utils::errors::ErrorCode;
 use crate::utils::{config::Configuration};
@@ -34,7 +34,10 @@ async fn create_init_indexes(db: &Database) -> Result<(), VaultError> {
 /// Create a policy with an id of DEFAULT.
 ///
 async fn create_default_policy(db: &Database) -> Result<(), VaultError> {
-    match db.collection::<PolicyDB>("Policies").insert_one(PolicyDB::default(), None).await {
+    let result = db.collection::<PolicyDB>("Policies")
+        .insert_one(PolicyDB::default(), None).await;
+
+    match result {
         Ok(_) => Ok(()),
         Err(err) => {
             match is_duplicate_err(&err) {
@@ -69,13 +72,8 @@ pub fn is_duplicate_err(err: &mongodb::error::Error) -> bool {
 /// Create the default config document IF IT DOESN'T EXIST.
 ///
 async fn create_default_config(db: &Database) -> Result<(), VaultError> {
-    let doc = doc!{
-        "config_id": "SINGLETON",
-        "active_policy_id": "DEFAULT",
-        "actived_on": bson::DateTime::from_chrono(Utc::now())
-    };
-
-    let _ignored = db.collection::<Document>("Config").insert_one(doc, None).await;
+    let _ignored = db.collection::<Config>("Config")
+        .insert_one(Config::default(), None).await;
     Ok(())
 }
 

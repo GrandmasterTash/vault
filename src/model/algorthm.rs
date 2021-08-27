@@ -13,14 +13,13 @@ pub enum Algorthm {
     PBKDF2,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Display, Serialize, PartialEq)]
 pub enum ArgonHashType {
     ARGON2D,
     ARGON2I,
     ARGON2ID
 }
 
-// TODO: This is not a policy it is also a general algorthm
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ArgonPolicyDB {
     pub parallelism: u32,
@@ -41,62 +40,6 @@ pub struct BcryptPolicyDB {
 pub struct PBKDF2PolicyDB {
     pub cost: u32
 }
-
-// pub trait Hasher {
-//     async fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError>;
-// }
-
-// // TODO: Move each alg into sub-module.
-// impl Hasher for ArgonPolicyDB {
-//     fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-//         let password = plain_text_password.as_bytes();
-//         let salt = SaltString::generate(&mut OsRng);
-
-//         let argon2 = Argon2::new(
-//             None /* TODO: pepper */,
-//             self.iterations,
-//             self.memory_size_kb,
-//             self.parallelism,
-//             Version::try_from(self.version)?)?;
-//             // .expect("Unable to create argon2 hasher");
-
-//         // Hash password to PHC string ($argon2id$v=19$...)
-//         Ok(argon2.hash_password_simple(password, salt.as_ref())?.to_string())
-//     }
-// }
-
-// impl Hasher for BcryptPolicyDB {
-//     fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-//         Ok(format!("wibble$bcrypt${}", plain_text_password)) // TODO: Brcypt
-//     }
-// }
-
-// impl Hasher for PBKDF2PolicyDB {
-//     fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-//         Ok(format!("wibble$pbkdf2${}", plain_text_password)) // TODO: pdbkdf2
-//     }
-// }
-// pub trait Validator {
-//     fn validate(&self, plain_text_password: &str) -> Result<bool, InternalError>;
-// }
-
-// impl Validator for ArgonPolicyDB {
-//     fn validate(&self, plain_text_password: &str) -> Result<bool, InternalError> {
-//         todo!()
-//     }
-// }
-
-// impl Validator for BcryptPolicyDB {
-//     fn validate(&self, plain_text_password: &str) -> Result<bool, InternalError> {
-//         todo!()
-//     }
-// }
-
-// impl Validator for PBKDF2PolicyDB {
-//     fn validate(&self, plain_text_password: &str) -> Result<bool, InternalError> {
-//         todo!()
-//     }
-// }
 
 ///
 /// Validate if the plain_text_password matches the hashed password provided.
@@ -120,7 +63,6 @@ fn select(phc: &str) -> Result<Algorthm, VaultError> {
 
     match split.next() {
         Some(algorthm) => Algorthm::from_str(algorthm),
-        // None => return Err(VaultError::new(ErrorCode::InvalidPHCFormat, &format!("The PHC is invalid, there's no algorthm"))),
         None => return Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorthm")),
     }
 }
@@ -170,69 +112,10 @@ impl ArgonPolicyDB {
             self.memory_size_kb,
             self.parallelism,
             Version::try_from(self.version)?)?;
-            // .expect("Unable to create argon2 hasher");
 
         // Hash password to PHC string ($argon2id$v=19$...)
         Ok(argon2.hash_password_simple(password, salt.as_ref())?.to_string())
     }
-
-
-    // ///
-    // /// Inflate an argon algorthm from a string in the form: -
-    // ///
-    // ///   $argon2id$v=19$m=16384,t=20,p=1$77QFGJMDLMwvR7+lYvuNtw$82Byd2enomP62Z01Wcb1g5+KApYhQygW6BEYCXnZj5A
-    // ///
-    // /// Such that the return value is an Argon algorthm and the encapsulated salt (base64 encoded) and
-    // /// hashed password (base64 encoded).
-    // ///
-    // pub fn from_phc(phc: &str) -> Result<(Self, /* salt */&str, /* password */&str), InternalError> {
-    //     // TODO: Nom the string into a DB struct.
-
-    //     let mut split = phc.split("$");
-
-    //     let hash_type = match split.next() {
-    //         Some(algorthm) => ArgonHashType::from_str(algorthm)?,
-    //         None => return Err(InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: "no algorthm".to_string() }),
-    //     };
-
-    //     let version = match split.next() {
-    //         Some(version) => {
-    //             // TODO: Split by = should v=<blah>.
-
-    //             version.parse::<u32>()
-    //                 .map_err(|e| InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: format!("invalid version: {}", e) })?
-    //         },
-    //         None => return Err(InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: "no version".to_string() }),
-    //     };
-
-    //     // TODO: Make above a fn and re-use....
-    //     let memory_size_kb = match split.next() {
-    //         Some(memory_size_kb) => memory_size_kb.parse::<u32>().map_err(|e| InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: format!("invalid memory size: {}", e) })?,
-    //         None => return Err(InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: "no memory size".to_string() }),
-    //     };
-
-    //     let tag_length = match split.next() {
-    //         Some(tag_length) => tag_length.parse::<u32>().map_err(|e| InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: format!("invalid tag length: {}", e) })?,
-    //         None => return Err(InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: "no tag length".to_string() }),
-    //     };
-
-    //     let iterations = match split.next() {
-    //         Some(iterations) => iterations.parse::<u32>().map_err(|e| InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: format!("invalid iterations: {}", e) })?,
-    //         None => return Err(InternalError::InvalidPHCFormat{ algorthm: "Argon".to_string(), cause: "no iterations".to_string() }),
-    //     };
-
-    //     // TODO: Salt, then hash.
-
-    //     // Ok(ArgonPolicyDB {
-    //     //     parallelism: 1,
-    //     //     tag_length: 128,
-    //     //     memory_size_kb: 1024 * 16,
-    //     //     iterations: 20,
-    //     //     version: 19,
-    //     //     hash_type: ArgonHashType::ARGON2ID
-    //     // })
-    //     todo!()
-    // }
 }
 
 impl FromStr for ArgonHashType {

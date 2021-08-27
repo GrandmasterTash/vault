@@ -1,5 +1,4 @@
 use serde_json::json;
-use mongodb::Database;
 use bson::{Document, doc};
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
@@ -14,11 +13,11 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     let request = request.into_inner();
 
     // Load the password from MongoDB.
-    let password = load_password(&request.password_id, &ctx.db).await?;
+    let password = load_password(&request.password_id, &ctx).await?;
 
     // Get a snapshot of the policy as we'll need it potentially over the course of some io and
     // we don't want to hold a read lock for too long.
-    let policy = ctx.active_policy.read().clone();
+    let policy = ctx.active_policy().policy.clone();
 
     // // If we've failed too many times recently, reject the request.
     if locked_out(ctx, &password, &policy) {
@@ -38,7 +37,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 
     // If the password is not valid, bump the failure count in the db.
     if !valid {
-        increase_failure_count(ctx, &password, &ctx.db).await?;
+        increase_failure_count(ctx, &password).await?;
 
         // Are we over the failure limit? Raise a notification.
         if password.failure_count.unwrap_or(0) > policy.max_failures {
@@ -54,10 +53,10 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     }
 
     // Has the password expired? If so, indicate in the response it must be changed.
-    let must_change = expired(ctx, &password, &policy);
+    let must_change = expired(ctx, &password, &policy); // TODO: This should return a failure but with this body?
 
     // Clear any failure details on the password and stamp the last successful use.
-    clear_failure_details(ctx, &password, &ctx.db).await?;
+    clear_failure_details(ctx, &password).await?;
     Ok(Response::new(api::ValidateResponse { must_change }))
 
 }
@@ -102,11 +101,11 @@ fn expired(ctx: &ServiceContext, password: &PasswordDB, policy: &PolicyDB) -> bo
 ///
 /// Load the requested password from the database.
 ///
-async fn load_password(password_id: &str, db: &Database) -> Result<PasswordDB, VaultError> {
+async fn load_password(password_id: &str, ctx: &ServiceContext) -> Result<PasswordDB, VaultError> {
 
     let filter = doc!{ "password_id": password_id };
 
-    match db.collection::<PasswordDB>("Passwords").find_one(filter, None)
+    match ctx.db().collection::<PasswordDB>("Passwords").find_one(filter, None)
         .await
         .map_err(|e| VaultError::from(e))? {
 
@@ -119,7 +118,7 @@ async fn load_password(password_id: &str, db: &Database) -> Result<PasswordDB, V
 ///
 /// Bump the failure count and, if not set yet, timestamp the failure date.
 ///
-async fn increase_failure_count(ctx: &ServiceContext, password: &PasswordDB, db: &Database) -> Result<(), VaultError> {
+async fn increase_failure_count(ctx: &ServiceContext, password: &PasswordDB) -> Result<(), VaultError> {
 
     let filter = doc!{ "password_id": &password.password_id };
 
@@ -132,7 +131,7 @@ async fn increase_failure_count(ctx: &ServiceContext, password: &PasswordDB, db:
         },
     };
 
-    db.collection::<Document>("Passwords").update_one(filter, update, None)
+    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -142,7 +141,7 @@ async fn increase_failure_count(ctx: &ServiceContext, password: &PasswordDB, db:
 ///
 /// Clear any failure details and timestamp a successful validate operation.
 ///
-async fn clear_failure_details(ctx: &ServiceContext, password: &PasswordDB, db: &Database) -> Result<(), VaultError> {
+async fn clear_failure_details(ctx: &ServiceContext, password: &PasswordDB) -> Result<(), VaultError> {
 
     let filter = doc!{ "password_id": &password.password_id };
 
@@ -152,7 +151,7 @@ async fn clear_failure_details(ctx: &ServiceContext, password: &PasswordDB, db: 
             "$set": { "last_success": bson::DateTime::from_chrono(ctx.now()) }
     };
 
-    db.collection::<Document>("Passwords").update_one(filter, update, None)
+    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 

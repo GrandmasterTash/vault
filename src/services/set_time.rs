@@ -17,3 +17,12 @@ pub async fn set_time(ctx: &ServiceContext, request: Request<admin::NewTime>)
     tracing::info!("TimeProvider fixed to {:?}", parsed);
     Ok(Response::new(common::Empty::default()))
 }
+
+
+pub async fn reset_time(ctx: &ServiceContext, _request: Request<common::Empty>)
+    -> Result<Response<common::Empty>, Status> {
+
+    ctx.set_now(None);
+    tracing::info!("TimeProvider no-longer fixed");
+    Ok(Response::new(common::Empty::default()))
+}

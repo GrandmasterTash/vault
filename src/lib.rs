@@ -1,24 +1,28 @@
-pub mod utils;
 mod model;
 mod services;
+pub mod utils;
 
-use grpc::api::vault_server::VaultServer;
-use grpc::admin::admin_server::AdminServer;
-use utils::errors::VaultError;
 use utils::mongo;
 use dotenv::dotenv;
 use std::sync::Arc;
-use parking_lot::RwLock;
+use std::time::Duration;
+use crate::model::policy;
 use tonic::transport::Server;
-use services::ServiceContext;
-use crate::model::policy::PolicyDB;
+use utils::errors::VaultError;
 use utils::config::{Configuration, self};
+use grpc::api::vault_server::VaultServer;
+use grpc::admin::admin_server::AdminServer;
+use services::context::ServiceContext;
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, util::SubscriberInitExt};
 
 #[cfg(feature = "kafka")]
 use utils::kafka;
 
+///
+/// These are the generated gRPC/protobuf modules which give us access to the message structures, services,
+/// servers and clients to talk to our APIs. The services are implemented in services/mod.rs
+///
 pub mod grpc {
     pub mod common {
         tonic::include_proto!("grpc.common");
@@ -35,6 +39,9 @@ pub mod grpc {
 
 const APP_NAME: &str = "Vault";
 
+///
+/// Entry point to start the app.
+///
 pub async fn lib_main() -> Result<(), VaultError> {
 
     // Load any local dev settings as environment variables from a .env file.
@@ -61,30 +68,27 @@ pub async fn lib_main() -> Result<(), VaultError> {
     // Ensure the schema is in sync with the code.
     mongo::update_mongo(&db).await?;
 
+    // Load the active policy from the DB.
+    let active_policy = policy::load_active(&db).await?;
+
     // Create any consumer topics we need to listen to.
     #[cfg(feature = "kafka")]
     kafka::create_topics(&config).await;
 
-    // Load the active policy from the DB.
-    let active_policy = Arc::new(RwLock::new(PolicyDB::load_active(db.clone()).await?));
-
     // The service context allows any gRPC service access to shared stuff (databases, notification producers, etc.).
-    let service_context = Arc::new(ServiceContext::new(
+    let ctx = Arc::new(ServiceContext::new(
         config.clone(),
         db.clone(),
-        active_policy.clone()));
+        active_policy));
 
-    // Spawn a consumer to monitor the active policy changes from other instances.
     #[cfg(feature = "kafka")]
-    tokio::spawn(async move {
-        kafka::consumer::init_consumer(config.clone(), db.clone(), active_policy.clone()).await
-    });
+    start_and_wait_for_consumer(ctx.clone()).await;
 
     tracing::info!("{} listening on {}", APP_NAME, addr);
 
     Server::builder()
-        .add_service(VaultServer::new(service_context.clone()))
-        .add_service(AdminServer::new(service_context.clone()))
+        .add_service(VaultServer::new(ctx.clone()))
+        .add_service(AdminServer::new(ctx.clone()))
         .serve(addr)
         .await?;
 
@@ -93,9 +97,28 @@ pub async fn lib_main() -> Result<(), VaultError> {
     }
 
     println!("Shutting down now sir");
+    // TODO: Need Ctrl-C handling - https://docs.rs/tokio/1.10.1/tokio/signal/index.html
 
     Ok(())
 }
+
+///
+/// Connect a Kafka consumer and wait for it to be ready to receive messages.
+///
+async fn start_and_wait_for_consumer(ctx: Arc<ServiceContext>) {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+    // Spawn a consumer to monitor the active policy changes from other instances.
+    tokio::spawn(async move {
+        kafka::consumer::init_consumer(ctx, tx).await
+    });
+
+    // Wait until the consumer has sent us a signal that it's ready.
+    if let Err(_) = tokio::time::timeout(Duration::from_secs(10), rx.recv()).await {
+        panic!("Timeout waiting for the kafka consumer to signal it was ready.");
+    }
+}
+
 
 ///
 /// Initialise tracing and plug-in the Jaeger feature if enabled.
