@@ -2,7 +2,6 @@ use std::fmt::Write;
 use std::env::VarError;
 use config::ConfigError;
 use serde::{Deserialize, Serialize};
-
 use super::errors::VaultError;
 
 ///

@@ -3,7 +3,7 @@ use serde_json::json;
 use super::ServiceContext;
 use crate::services::make_active;
 use tonic::{Request, Response, Status};
-use crate::model::policy::PolicyDB;
+use crate::model::policy::Policy;
 use crate::utils::{errors::ErrorCode, mongo};
 use crate::{utils::errors::VaultError, grpc::api};
 
@@ -26,11 +26,11 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
     let now = ctx.now();
 
     // Create the policy in the db.
-    let mut policy: PolicyDB = api_policy.into();
+    let mut policy: Policy = api_policy.into();
     policy.policy_id = policy_id.clone();
     policy.created_on = bson::DateTime::from_chrono(now);
 
-    ctx.db().collection::<PolicyDB>("Policies").insert_one(policy.clone(), None)
+    ctx.db().collection::<Policy>("Policies").insert_one(policy.clone(), None)
         .await
         .map_err(|e| VaultError::from(e))?;
 

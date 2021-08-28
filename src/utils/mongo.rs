@@ -5,7 +5,7 @@ use tracing::{debug, info};
 use super::errors::VaultError;
 use mongodb::error::ErrorKind;
 use crate::model::config::Config;
-use crate::model::policy::PolicyDB;
+use crate::model::policy::Policy;
 use crate::utils::errors::ErrorCode;
 use crate::utils::{config::Configuration};
 use mongodb::{Client, Database, bson::{self, Document, doc}, options::{ClientOptions, UpdateOptions}};
@@ -34,8 +34,8 @@ async fn create_init_indexes(db: &Database) -> Result<(), VaultError> {
 /// Create a policy with an id of DEFAULT.
 ///
 async fn create_default_policy(db: &Database) -> Result<(), VaultError> {
-    let result = db.collection::<PolicyDB>("Policies")
-        .insert_one(PolicyDB::default(), None).await;
+    let result = db.collection::<Policy>("Policies")
+        .insert_one(Policy::default(), None).await;
 
     match result {
         Ok(_) => Ok(()),
@@ -76,6 +76,7 @@ async fn create_default_config(db: &Database) -> Result<(), VaultError> {
         .insert_one(Config::default(), None).await;
     Ok(())
 }
+
 
 pub async fn get_mongo_db(app_name: &str, config: &Configuration) -> Result<Database, VaultError> {
 

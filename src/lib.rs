@@ -1,3 +1,4 @@
+mod db;
 mod model;
 mod services;
 pub mod utils;
@@ -6,7 +7,6 @@ use utils::mongo;
 use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
-use crate::model::policy;
 use tonic::transport::Server;
 use utils::errors::VaultError;
 use utils::config::{Configuration, self};
@@ -69,7 +69,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
     mongo::update_mongo(&db).await?;
 
     // Load the active policy from the DB.
-    let active_policy = policy::load_active(&db).await?;
+    let active_policy = db::policy::load_active(&db).await?;
 
     // Create any consumer topics we need to listen to.
     #[cfg(feature = "kafka")]

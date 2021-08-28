@@ -24,6 +24,7 @@ pub async fn create_topics(config: &Configuration) {
         .expect("Cant create topics");
 }
 
+
 fn create_admin_client(config: &Configuration) -> AdminClient<DefaultClientContext> {
     ClientConfig::new()
         .set("bootstrap.servers", format!("{}", config.kafka_servers))

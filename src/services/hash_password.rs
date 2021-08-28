@@ -1,7 +1,6 @@
 use super::ServiceContext;
-use bson::{Document, doc};
 use tonic::{Request, Response, Status};
-use crate::{grpc::api, utils::{errors::VaultError, mongo}};
+use crate::{db, grpc::api, utils::{errors::VaultError, mongo}};
 
 ///
 /// Validate the password against the current password policy.
@@ -30,23 +29,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
         .map_err(|e| VaultError::from(e))?
         ?;
 
-
-    // Store in db.
-    let filter = doc! {
-        "password_id": &password_id,
-    };
-
-    let update = doc!{
-        "$set": {
-            "password_id": &password_id,
-            "phc": phc,
-            "changed_on": bson::DateTime::from_chrono(ctx.now()),
-        }
-    };
-
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, mongo::upsert())
-        .await
-        .map_err(|e| VaultError::from(e))?;
+    let _result = db::password::upsert(&ctx, &password_id, &phc).await?;
 
     Ok(Response::new(api::HashResponse { password_id }))
 }

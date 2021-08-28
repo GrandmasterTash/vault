@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PasswordDB {
+pub struct Password {
     pub password_id: String,
     pub phc: String,
     pub changed_on: bson::DateTime,

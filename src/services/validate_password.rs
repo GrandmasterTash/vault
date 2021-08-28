@@ -1,9 +1,8 @@
 use serde_json::json;
-use bson::{Document, doc};
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{grpc::api, model::{algorithm, password::PasswordDB, policy::PolicyDB}, utils::errors::{ErrorCode, VaultError}};
+use crate::{db, grpc::api, model::{algorithm, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
     -> Result<Response<api::ValidateResponse>, Status> {
@@ -12,7 +11,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     let request = request.into_inner();
 
     // Load the password from MongoDB.
-    let password = load_password(&request.password_id, &ctx).await?;
+    let password = db::password::load(&request.password_id, ctx.db()).await?;
 
     // Get a snapshot of the policy as we'll need it potentially over the course of some io and
     // we don't want to hold a read lock for too long.
@@ -36,7 +35,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 
     // If the password is not valid, bump the failure count in the db.
     if !valid {
-        increase_failure_count(ctx, &password).await?;
+        db::password::increase_failure_count(ctx, &password).await?;
 
         // Are we over the failure limit? Raise a notification.
         if password.failure_count.unwrap_or(0) > policy.max_failures {
@@ -55,7 +54,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     let must_change = expired(ctx, &password, &policy); // TODO: This should return a failure but with this body?
 
     // Clear any failure details on the password and stamp the last successful use.
-    clear_failure_details(ctx, &password).await?;
+    db::password::clear_failure_details(ctx, &password).await?;
     Ok(Response::new(api::ValidateResponse { must_change }))
 
 }
@@ -69,7 +68,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 /// Whenever a successful validate attempt is performed, the last_failure and
 /// failure_counts are reset.
 ///
-fn locked_out(ctx: &ServiceContext, password: &PasswordDB, policy: &PolicyDB) -> bool {
+fn locked_out(ctx: &ServiceContext, password: &Password, policy: &Policy) -> bool {
 
     // Has the password failed a previous attempt?
     if let Some(first_failure) = password.first_failure {
@@ -90,69 +89,8 @@ fn locked_out(ctx: &ServiceContext, password: &PasswordDB, policy: &PolicyDB) ->
 /// If the password hasn't been changed within the rotation period, indicate to the caller it now
 /// needs to be rotated.
 ///
-fn expired(ctx: &ServiceContext, password: &PasswordDB, policy: &PolicyDB) -> bool {
+fn expired(ctx: &ServiceContext, password: &Password, policy: &Policy) -> bool {
     let changed_on: DateTime<Utc> = password.changed_on.into();
     let duration: Duration = ctx.now() - changed_on;
     duration.num_days() > policy.max_age_days as i64
-}
-
-
-///
-/// Load the requested password from the database.
-///
-async fn load_password(password_id: &str, ctx: &ServiceContext) -> Result<PasswordDB, VaultError> {
-
-    let filter = doc!{ "password_id": password_id };
-
-    match ctx.db().collection::<PasswordDB>("Passwords").find_one(filter, None)
-        .await
-        .map_err(|e| VaultError::from(e))? {
-
-        Some(password) => Ok(password),
-        None => Err(ErrorCode::PasswordNotFound.with_msg("The password requested does not exist").into())
-    }
-}
-
-
-///
-/// Bump the failure count and, if not set yet, timestamp the failure date.
-///
-async fn increase_failure_count(ctx: &ServiceContext, password: &PasswordDB) -> Result<(), VaultError> {
-
-    let filter = doc!{ "password_id": &password.password_id };
-
-    // Update the failure count and potentially the first_failure timestamp.
-    let update = match password.first_failure {
-        Some(_) => doc!("$inc": { "failure_count": 1 }),
-        None => doc!{
-            "$inc": { "failure_count": 1 },
-            "$set": { "first_failure": bson::DateTime::from_chrono(ctx.now()) }
-        },
-    };
-
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
-        .await
-        .map_err(|e| VaultError::from(e))?;
-
-    Ok(())
-}
-
-///
-/// Clear any failure details and timestamp a successful validate operation.
-///
-async fn clear_failure_details(ctx: &ServiceContext, password: &PasswordDB) -> Result<(), VaultError> {
-
-    let filter = doc!{ "password_id": &password.password_id };
-
-    // Update the failure count and potentially the first_failure timestamp.
-    let update = doc!{
-            "$unset": { "failure_count": "", "first_failure": "" },
-            "$set": { "last_success": bson::DateTime::from_chrono(ctx.now()) }
-    };
-
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
-        .await
-        .map_err(|e| VaultError::from(e))?;
-
-    Ok(())
 }

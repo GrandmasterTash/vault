@@ -1,6 +1,5 @@
 use std::sync::Arc;
-
-use crate::APP_NAME;
+use crate::{APP_NAME, db};
 use crate::services::context::ServiceContext;
 use rdkafka::error::KafkaResult;
 use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
@@ -9,7 +8,7 @@ use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use tokio::sync::mpsc;
 use tracing::instrument;
-use crate::model::policy::{self, PolicyActivated};
+use crate::model::policy::PolicyActivated;
 use crate::utils::mongo::generate_id;
 
 /// All the topics this service needs to monitor.
@@ -119,7 +118,7 @@ async fn handle_policy_activated(topic: &str, payload: &str, ctx: Arc<ServiceCon
 
     match serde_json::from_str::<PolicyActivated>(payload) {
         Ok(payload) => {
-            let policy = policy::load(&payload.policy_id, &ctx)
+            let policy = db::policy::load(&payload.policy_id, ctx.db())
                 .await
                 .expect(&format!("failed to load policy {} from the db", payload.policy_id));
 
