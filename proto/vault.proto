@@ -50,7 +50,7 @@ message Policy {
     uint32 lockout_seconds = 14;
     bool mixed_case_required = 15;
     uint32 reset_timeout_seconds = 16;
-    oneof algorthm {
+    oneof algorithm {
         ArgonPolicy argon_policy = 17;
         BCryptPolicy bcrypt_policy = 18;
         PBKDF2Policy pbkfd2_policy = 19;

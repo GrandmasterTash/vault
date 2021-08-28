@@ -4,13 +4,13 @@ use crate::grpc::api;
 use std::collections::HashMap;
 use crate::model::config::Config;
 use mongodb::{Database, bson::doc};
-use super::algorthm::ArgonHashType;
-use super::algorthm::BCryptVersion;
+use super::algorithm::ArgonHashType;
+use super::algorithm::BCryptVersion;
 use serde::{Deserialize, Serialize};
 use crate::model::config::prelude::*;
 use crate::utils::errors::{ErrorCode, VaultError};
 use crate::services::context::{ActivePolicy, ServiceContext};
-use super::algorthm::{Algorthm, ArgonPolicyDB, BcryptPolicyDB, PBKDF2PolicyDB};
+use super::algorithm::{Algorithm, ArgonPolicyDB, BcryptPolicyDB, PBKDF2PolicyDB};
 
 ///
 /// A notification sent between instances of Vault to signify the active policy has changed.
@@ -42,7 +42,7 @@ pub struct PolicyDB {
     pub lockout_seconds: u32,
     pub reset_timeout_seconds: u32,
     pub mixed_case_required: bool,
-    pub algorthm_type: Algorthm,
+    pub algorithm_type: Algorithm,
     pub argon_policy:  Option<ArgonPolicyDB>,
     pub bcrypt_policy: Option<BcryptPolicyDB>,
     pub pbkdf2_policy: Option<PBKDF2PolicyDB>,
@@ -69,7 +69,7 @@ impl Default for PolicyDB {
             lockout_seconds: 60,
             reset_timeout_seconds: 5 * 60,
             mixed_case_required: true,
-            algorthm_type: Algorthm::BCrypt,
+            algorithm_type: Algorithm::BCrypt,
             argon_policy: None,
             bcrypt_policy: Some(BcryptPolicyDB::default()),
             pbkdf2_policy: None,
@@ -192,15 +192,15 @@ impl PolicyDB {
     // }
 
     ///
-    /// Use the hashing algorthm to hash the password and build a PHC string.
+    /// Use the hashing algorithm to hash the password and build a PHC string.
     ///
     /// ref: https://github.com/P-H-C/phc-string-format/blob/master/phc-sf-spec.md
     ///
     pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-        match self.algorthm_type {
-            Algorthm::Argon  => self.argon_policy().hash_into_phc(plain_text_password),
-            Algorthm::BCrypt => self.bcrypt_policy().hash_into_phc(plain_text_password),
-            Algorthm::PBKDF2 => todo!(),
+        match self.algorithm_type {
+            Algorithm::Argon  => self.argon_policy().hash_into_phc(plain_text_password),
+            Algorithm::BCrypt => self.bcrypt_policy().hash_into_phc(plain_text_password),
+            Algorithm::PBKDF2 => todo!(),
         }
     }
 }
@@ -226,8 +226,8 @@ impl From<PolicyDB> for api::Policy {
             mixed_case_required:   policy.mixed_case_required,
             reset_timeout_seconds: policy.reset_timeout_seconds,
             prohibited_phrases:    policy.prohibited_phrases.iter().cloned().collect(),
-            algorthm:              match policy.algorthm_type {
-                Algorthm::Argon => Some(api::policy::Algorthm::ArgonPolicy(api::ArgonPolicy {
+            algorithm:              match policy.algorithm_type {
+                Algorithm::Argon => Some(api::policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
                     parallelism:    policy.argon_policy().parallelism,
                     tag_length:     policy.argon_policy().tag_length,
                     memory_size_kb: policy.argon_policy().memory_size_kb,
@@ -239,7 +239,7 @@ impl From<PolicyDB> for api::Policy {
                         ArgonHashType::ARGON2ID => api::argon_policy::HashType::Argon2id.into(),
                     },
                 })),
-                Algorthm::BCrypt => Some(api::policy::Algorthm::BcryptPolicy(api::BCryptPolicy {
+                Algorithm::BCrypt => Some(api::policy::Algorithm::BcryptPolicy(api::BCryptPolicy {
                     version: match policy.bcrypt_policy().version {
                         BCryptVersion::TwoA => api::b_crypt_policy::BCryptVersion::Twoa.into(),
                         BCryptVersion::TwoX => api::b_crypt_policy::BCryptVersion::Twox.into(),
@@ -248,7 +248,7 @@ impl From<PolicyDB> for api::Policy {
                     },
                     cost: policy.bcrypt_policy().cost,
                 })),
-                Algorthm::PBKDF2 => todo!(),
+                Algorithm::PBKDF2 => todo!(),
             }
         }
     }
@@ -280,16 +280,16 @@ impl From<api::Policy> for PolicyDB {
             lockout_seconds:       policy.lockout_seconds,
             reset_timeout_seconds: policy.reset_timeout_seconds,
             mixed_case_required:   policy.mixed_case_required,
-            algorthm_type:         policy.algorthm.as_ref().into(),
-            argon_policy:          match &policy.algorthm {
+            algorithm_type:         policy.algorithm.as_ref().into(),
+            argon_policy:          match &policy.algorithm {
                                        Some(argon) => argon.into(),
                                        None        => None,
                                    },
-            bcrypt_policy:         match &policy.algorthm {
+            bcrypt_policy:         match &policy.algorithm {
                                        Some(bcrypt) => bcrypt.into(),
                                        None         => None,
                                    },
-            pbkdf2_policy:         match &policy.algorthm {
+            pbkdf2_policy:         match &policy.algorithm {
                                        Some(pbkdf2) => pbkdf2.into(),
                                        None         => None,
                                    },
@@ -298,21 +298,21 @@ impl From<api::Policy> for PolicyDB {
     }
 }
 
-impl From<Option<&api::policy::Algorthm>> for Algorthm {
-    fn from(alogrithm: Option<&api::policy::Algorthm>) -> Self {
+impl From<Option<&api::policy::Algorithm>> for Algorithm {
+    fn from(alogrithm: Option<&api::policy::Algorithm>) -> Self {
         match alogrithm.expect("No algorithm on the policy") { // Validated against in create_policy
-            api::policy::Algorthm::ArgonPolicy(_)  => Algorthm::Argon,
-            api::policy::Algorthm::BcryptPolicy(_) => Algorthm::BCrypt,
-            api::policy::Algorthm::Pbkfd2Policy(_) => Algorthm::PBKDF2,
+            api::policy::Algorithm::ArgonPolicy(_)  => Algorithm::Argon,
+            api::policy::Algorithm::BcryptPolicy(_) => Algorithm::BCrypt,
+            api::policy::Algorithm::Pbkfd2Policy(_) => Algorithm::PBKDF2,
         }
     }
 }
 
 // TODO: Feel this stuff should be algorithm?
-impl From<&api::policy::Algorthm> for Option<ArgonPolicyDB> {
-    fn from(alogrithm: &api::policy::Algorthm) -> Self {
+impl From<&api::policy::Algorithm> for Option<ArgonPolicyDB> {
+    fn from(alogrithm: &api::policy::Algorithm) -> Self {
         match alogrithm {
-            api::policy::Algorthm::ArgonPolicy(argon) => {
+            api::policy::Algorithm::ArgonPolicy(argon) => {
                 Some(ArgonPolicyDB{
                     parallelism:    argon.parallelism,
                     tag_length:     argon.tag_length,
@@ -327,16 +327,16 @@ impl From<&api::policy::Algorthm> for Option<ArgonPolicyDB> {
                     },
                 })
             },
-            api::policy::Algorthm::BcryptPolicy(_) => None,
-            api::policy::Algorthm::Pbkfd2Policy(_) => None,
+            api::policy::Algorithm::BcryptPolicy(_) => None,
+            api::policy::Algorithm::Pbkfd2Policy(_) => None,
         }
     }
 }
 
-impl From<&api::policy::Algorthm> for Option<BcryptPolicyDB> {
-    fn from(alogrithm: &api::policy::Algorthm) -> Self {
+impl From<&api::policy::Algorithm> for Option<BcryptPolicyDB> {
+    fn from(alogrithm: &api::policy::Algorithm) -> Self {
         match alogrithm {
-            api::policy::Algorthm::BcryptPolicy(bcrypt) => {
+            api::policy::Algorithm::BcryptPolicy(bcrypt) => {
                 Some(BcryptPolicyDB {
                     version: match bcrypt.version {
                         0 => BCryptVersion::TwoA,
@@ -348,18 +348,18 @@ impl From<&api::policy::Algorthm> for Option<BcryptPolicyDB> {
                     cost: bcrypt.cost,
                 })
             },
-            api::policy::Algorthm::ArgonPolicy(_)  => None,
-            api::policy::Algorthm::Pbkfd2Policy(_) => None,
+            api::policy::Algorithm::ArgonPolicy(_)  => None,
+            api::policy::Algorithm::Pbkfd2Policy(_) => None,
         }
     }
 }
 
-impl From<&api::policy::Algorthm> for Option<PBKDF2PolicyDB> {
-    fn from(alogrithm: &api::policy::Algorthm) -> Self {
+impl From<&api::policy::Algorithm> for Option<PBKDF2PolicyDB> {
+    fn from(alogrithm: &api::policy::Algorithm) -> Self {
         match alogrithm {
-            api::policy::Algorthm::ArgonPolicy(_)  => None,
-            api::policy::Algorthm::BcryptPolicy(_) => None,
-            api::policy::Algorthm::Pbkfd2Policy(pbkfd2) => Some(PBKDF2PolicyDB { cost: pbkfd2.cost }),
+            api::policy::Algorithm::ArgonPolicy(_)  => None,
+            api::policy::Algorithm::BcryptPolicy(_) => None,
+            api::policy::Algorithm::Pbkfd2Policy(pbkfd2) => Some(PBKDF2PolicyDB { cost: pbkfd2.cost }),
         }
     }
 }

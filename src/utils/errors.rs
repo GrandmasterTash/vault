@@ -79,7 +79,7 @@ impl From<tonic::transport::Error> for VaultError {
 
 impl From<argon2::Error> for VaultError {
     fn from(error: argon2::Error) -> Self {
-        ErrorCode::InvalidAlgorthimConfig.with_msg(&format!("Invalid configuration for algorthm: {}", error))
+        ErrorCode::InvalidAlgorthimConfig.with_msg(&format!("Invalid configuration for algorithm: {}", error))
     }
 }
 

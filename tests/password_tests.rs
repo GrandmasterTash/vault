@@ -174,7 +174,7 @@ async fn test_new_policy_can_be_retreived() {
         mixed_case_required: true,
         reset_timeout_seconds: 14,
         prohibited_phrases: vec!(String::from("1234")),
-        algorthm: Some(api::policy::Algorthm::ArgonPolicy(api::ArgonPolicy {
+        algorithm: Some(api::policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
             parallelism: 15,
             tag_length: 16,
             memory_size_kb: 17,

@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use crate::utils::errors::{ErrorCode, VaultError};
 
 #[derive(Clone, Copy, Debug, Deserialize, Display, Serialize, PartialEq)]
-pub enum Algorthm {
+pub enum Algorithm {
     Argon,
     BCrypt,
     PBKDF2,
@@ -55,37 +55,37 @@ pub struct PBKDF2PolicyDB {
 ///
 pub fn validate(plain_text_password: &str, phc: &str) -> Result<bool, VaultError> {
     match select(phc)? {
-        Algorthm::Argon  => validate_argon(phc, plain_text_password),
-        Algorthm::BCrypt => validate_bcrypt(phc, plain_text_password),
-        Algorthm::PBKDF2 => todo!(),
+        Algorithm::Argon  => validate_argon(phc, plain_text_password),
+        Algorithm::BCrypt => validate_bcrypt(phc, plain_text_password),
+        Algorithm::PBKDF2 => todo!(),
     }
 }
 
 ///
-/// Parse the first part of the phc string and return the algorthm.
+/// Parse the first part of the phc string and return the algorithm.
 ///
-fn select(phc: &str) -> Result<Algorthm, VaultError> {
+fn select(phc: &str) -> Result<Algorithm, VaultError> {
     let mut split = phc.split("$");
     split.next(); /* Skip first it's blank */
 
     match split.next() {
-        Some(algorthm) => Algorthm::from_str(algorthm),
-        None => return Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorthm")),
+        Some(algorithm) => Algorithm::from_str(algorithm),
+        None => return Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorithm")),
     }
 }
 
-impl FromStr for Algorthm {
+impl FromStr for Algorithm {
     type Err = VaultError;
 
-    fn from_str(input: &str) -> Result<Algorthm, Self::Err> {
+    fn from_str(input: &str) -> Result<Algorithm, Self::Err> {
         match input {
             "argon2i" |
             "argon2d" |
-            "argon2id" => Ok(Algorthm::Argon),
+            "argon2id" => Ok(Algorithm::Argon),
             "2a"      |
             "2b"      |
             "2x"      |
-            "2y"       => Ok(Algorthm::BCrypt),
+            "2y"       => Ok(Algorithm::BCrypt),
             _          => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", input))),
         }
     }
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn test_select_argon2id() -> Result<(), VaultError> {
         let phc = "$argon2id$v=19$m=16384,t=20,p=1$77QFGJMDLMwvR7+lYvuNtw$82Byd2enomP62Z01Wcb1g5+KApYhQygW6BEYCXnZj5A";
-        assert_eq!(select(phc)?, Algorthm::Argon);
+        assert_eq!(select(phc)?, Algorithm::Argon);
         Ok(())
     }
 

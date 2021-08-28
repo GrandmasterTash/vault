@@ -3,7 +3,7 @@ use bson::{Document, doc};
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{grpc::api, model::{algorthm, password::PasswordDB, policy::PolicyDB}, utils::errors::{ErrorCode, VaultError}};
+use crate::{grpc::api, model::{algorithm, password::PasswordDB, policy::PolicyDB}, utils::errors::{ErrorCode, VaultError}};
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
     -> Result<Response<api::ValidateResponse>, Status> {
@@ -26,10 +26,10 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 
     // Validate the password matches the hashed password from the db. This is a highlly CPU-bound activity and
     // should be performed on the blocking worker thread pool.
-    // let valid = algorthm::validate(&request.plain_text_password, &password.phc).await?;
+    // let valid = algorithm::validate(&request.plain_text_password, &password.phc).await?;
     let phc = password.phc.clone();
     let plain_text_password = request.plain_text_password.clone();
-    let valid = tokio::task::spawn_blocking(move || { algorthm::validate(&plain_text_password, &phc) })
+    let valid = tokio::task::spawn_blocking(move || { algorithm::validate(&plain_text_password, &phc) })
         .await
         .map_err(|e| VaultError::from(e))?
         ?;

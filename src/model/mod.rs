@@ -1,4 +1,4 @@
-pub mod algorthm;
+pub mod algorithm;
 pub mod policy;
 pub mod password;
 pub mod config;

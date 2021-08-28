@@ -54,13 +54,13 @@ fn validate_request(request: api::CreatePolicyRequest) -> Result<(api::Policy, b
         None => return Err(ErrorCode::PolicyMandatory.with_msg("Please provide a policy"))
     };
 
-    match &policy.algorthm {
-        Some(algorthm) => match algorthm {
-            api::policy::Algorthm::ArgonPolicy(policy) => validate_argon(policy)?,
-            api::policy::Algorthm::BcryptPolicy(policy) => validate_bcrypt(policy)?,
-            api::policy::Algorthm::Pbkfd2Policy(_pbdkfd2) => {},
+    match &policy.algorithm {
+        Some(algorithm) => match algorithm {
+            api::policy::Algorithm::ArgonPolicy(policy) => validate_argon(policy)?,
+            api::policy::Algorithm::BcryptPolicy(policy) => validate_bcrypt(policy)?,
+            api::policy::Algorithm::Pbkfd2Policy(_pbdkfd2) => {},
         },
-        None => return Err(ErrorCode::AlgorthimMandatory.with_msg("Please provide an algorthm")),
+        None => return Err(ErrorCode::AlgorthimMandatory.with_msg("Please provide an algorithm")),
     };
 
     Ok((policy, request.activate))
