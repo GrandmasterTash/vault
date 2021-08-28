@@ -4,7 +4,6 @@ use std::{str::FromStr};
 use rand_core::OsRng;
 use std::convert::TryFrom;
 use crate::utils::errors::{ErrorCode, VaultError};
-use argon2::{Argon2, Version, password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString}};
 
 #[derive(Clone, Copy, Debug, Deserialize, Display, Serialize, PartialEq)]
 pub enum Algorthm {
@@ -30,9 +29,17 @@ pub struct ArgonPolicyDB {
     pub hash_type: ArgonHashType
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum BCryptVersion {
+    TwoA,
+    TwoB,
+    TwoX,
+    TwoY
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BcryptPolicyDB {
-    pub version: String,
+    pub version: BCryptVersion,
     pub cost: u32
 }
 
@@ -49,7 +56,7 @@ pub struct PBKDF2PolicyDB {
 pub fn validate(plain_text_password: &str, phc: &str) -> Result<bool, VaultError> {
     match select(phc)? {
         Algorthm::Argon  => validate_argon(phc, plain_text_password),
-        Algorthm::BCrypt => todo!(),
+        Algorthm::BCrypt => validate_bcrypt(phc, plain_text_password),
         Algorthm::PBKDF2 => todo!(),
     }
 }
@@ -75,17 +82,25 @@ impl FromStr for Algorthm {
             "argon2i" |
             "argon2d" |
             "argon2id" => Ok(Algorthm::Argon),
+            "2a"      |
+            "2b"      |
+            "2x"      |
+            "2y"       => Ok(Algorthm::BCrypt),
             _          => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", input))),
         }
     }
 }
 
 pub fn validate_argon(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
-    let parsed_hash = PasswordHash::new(&phc).unwrap();
-    match Argon2::default().verify_password(plain_text_password.as_bytes(), &parsed_hash) {
+    let parsed_hash = argon2::PasswordHash::new(&phc).unwrap();
+    match argon2::PasswordVerifier::verify_password(&argon2::Argon2::default(), plain_text_password.as_bytes(), &parsed_hash) {
         Ok(_)  => Ok(true),
         Err(_) => Ok(false),
     }
+}
+
+pub fn validate_bcrypt(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
+    bcrypt::verify(plain_text_password, phc).map_err(|e| VaultError::from(e))
 }
 
 impl Default for ArgonPolicyDB {
@@ -104,17 +119,48 @@ impl Default for ArgonPolicyDB {
 impl ArgonPolicyDB {
     pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
         let password = plain_text_password.as_bytes();
-        let salt = SaltString::generate(&mut OsRng);
+        let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
 
-        let argon2 = Argon2::new(
+        let argon2 = argon2::Argon2::new(
             None /* TODO: pepper */,
             self.iterations,
             self.memory_size_kb,
             self.parallelism,
-            Version::try_from(self.version)?)?;
+            argon2::Version::try_from(self.version)?)?;
 
         // Hash password to PHC string ($argon2id$v=19$...)
-        Ok(argon2.hash_password_simple(password, salt.as_ref())?.to_string())
+        Ok(argon2::PasswordHasher::hash_password_simple(&argon2, password, salt.as_ref())?.to_string())
+    }
+}
+
+impl Default for BcryptPolicyDB {
+    fn default() -> Self {
+        Self {
+            version: BCryptVersion::TwoB,
+            cost: 4 // Performance for tests - always chose stronger in prod.
+        }
+    }
+}
+
+impl BcryptPolicyDB {
+    pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
+        // Use argon to generate a salt.
+        let salt = argon2::password_hash::SaltString::generate(&mut OsRng); // TODO: include a pepper.
+        let salt: String = salt.as_str().chars().take(16).collect();
+        let hashed = bcrypt::hash_with_salt(plain_text_password, self.cost, salt.as_bytes())?;
+
+        Ok(hashed.format_for_version(self.version.into()))
+    }
+}
+
+impl From<BCryptVersion> for bcrypt::Version {
+    fn from(version: BCryptVersion) -> Self {
+        match version {
+            BCryptVersion::TwoA => bcrypt::Version::TwoA,
+            BCryptVersion::TwoB => bcrypt::Version::TwoB,
+            BCryptVersion::TwoX => bcrypt::Version::TwoX,
+            BCryptVersion::TwoY => bcrypt::Version::TwoY,
+        }
     }
 }
 
@@ -142,4 +188,6 @@ mod tests {
         assert_eq!(select(phc)?, Algorthm::Argon);
         Ok(())
     }
+
+    // TODO: Lots more unit tests please!
 }

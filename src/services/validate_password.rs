@@ -5,7 +5,6 @@ use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
 use crate::{grpc::api, model::{algorthm, password::PasswordDB, policy::PolicyDB}, utils::errors::{ErrorCode, VaultError}};
 
-
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
     -> Result<Response<api::ValidateResponse>, Status> {
 

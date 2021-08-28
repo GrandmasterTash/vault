@@ -1,3 +1,4 @@
+use bcrypt::BcryptError;
 use mongodb::bson;
 use tokio::task::JoinError;
 use tonic::{Code, Status};
@@ -27,6 +28,7 @@ pub enum ErrorCode {
     AlgorthimMandatory              = 1002,
     InvalidArgonParalellism         = 1100,
     InvalidArgonTaglength           = 1101,
+    InvalidBcryptCost               = 1200,
     PasswordContainsBannedPhrase    = 2001,
     PasswordTooShort                = 2002,
     PasswordTooLong                 = 2003,
@@ -131,6 +133,12 @@ impl From<JoinError> for VaultError {
     }
 }
 
+impl From<BcryptError> for VaultError {
+    fn from(error: BcryptError) -> Self {
+        ErrorCode::InvalidAlgorthimConfig.with_msg(&format!("Unable to verify: {}", error))
+    }
+}
+
 #[cfg(feature = "kafka")]
 impl From<(KafkaError, OwnedMessage)> for VaultError {
     fn from((error, message): (KafkaError, OwnedMessage)) -> Self {
@@ -167,6 +175,7 @@ impl From<VaultError> for Status {
             CharacterRepeatedTooManyTimes |
             InvalidArgonParalellism       |
             InvalidArgonTaglength         |
+            InvalidBcryptCost             |
             NotEnoughLetters              |
             NotEnoughNumbers              |
             NotEnoughSymbols              |

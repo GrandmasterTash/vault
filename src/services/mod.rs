@@ -24,38 +24,37 @@ impl Vault for Arc<ServiceContext> {
     type ImportPasswordsStream = Pin<Box<dyn Stream<Item = Result<api::ImportPasswordResponse, Status>> + Send + Sync>>;
     type DeletePasswordsStream = Pin<Box<dyn Stream<Item = Result<api::DeleteResponse, Status>> + Send + Sync>>;
 
-    // TODO: These should all skip the request to avoid logging sensitive information.
-    #[instrument(skip(self, request))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn create_password_policy(&self, request: Request<api::CreatePolicyRequest>) -> Result<Response<api::CreatePolicyResponse>, Status> {
         create_policy::create_password_policy(self, request).await
     }
 
-    #[instrument(skip(self, request))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn get_active_policy(&self, request: Request<common::Empty>) -> Result<Response<api::GetActivePolicyResponse>, Status> {
         get_active_policy::get_active_policy(&self, request).await
     }
 
-    #[instrument(skip(self, request))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap(), policy_id=?request.get_ref().policy_id))]
     async fn make_active(&self, request: Request<api::MakeActiveRequest>) -> Result<Response<common::Empty>, Status> {
         make_active::make_active(self, request).await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, _request), fields(remote_addr=?_request.remote_addr().unwrap()))]
     async fn get_policies(&self, _request: Request<common::Empty>) -> Result<Response<api::GetPoliciesResponse>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, _request), fields(remote_addr=?_request.remote_addr().unwrap()))]
     async fn import_passwords(&self, _request: Request<Streaming<api::ImportPasswordRequest>>) -> Result<Response<Self::ImportPasswordsStream>, Status>  {
         todo!()
     }
 
-    #[instrument(skip(self, request))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap(), password_id=?request.get_ref().password_id))]
     async fn hash_password(&self, request: Request<api::HashRequest>) -> Result<Response<api::HashResponse>, Status> {
         hash_password::hash_password(self, request).await
     }
 
-    #[instrument(skip(self, request))]
+    #[tracing::instrument(skip(self , request), fields(remote_addr=?request.remote_addr().unwrap(), password_id=?request.get_ref().password_id))]
     async fn validate_password(&self, request: Request<api::ValidateRequest>) -> Result<Response<api::ValidateResponse>, Status> {
         validate_password::validate_password(self, request).await
     }

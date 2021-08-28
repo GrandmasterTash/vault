@@ -28,8 +28,6 @@ service Vault {
 
 }
 
-// message Empty {}
-
 message CreatePolicyRequest {
     Policy policy = 1;
     bool activate = 2;
@@ -54,7 +52,7 @@ message Policy {
     uint32 reset_timeout_seconds = 16;
     oneof algorthm {
         ArgonPolicy argon_policy = 17;
-        BCryptPolicy bcyrpt_policy = 18;
+        BCryptPolicy bcrypt_policy = 18;
         PBKDF2Policy pbkfd2_policy = 19;
     }
     repeated string prohibited_phrases = 20;
@@ -79,7 +77,13 @@ message ArgonPolicy {
 
 // https://en.wikipedia.org/wiki/Bcrypt
 message BCryptPolicy {
-    string version = 1;
+    enum BCryptVersion {
+        TWOA = 0;
+        TWOX = 1;
+        TWOY = 2;
+        TWOB = 3;
+    }
+    BCryptVersion version = 1;
     uint32 cost = 2;
 }
 
