@@ -58,7 +58,7 @@ fn validate_request(request: api::CreatePolicyRequest) -> Result<(api::Policy, b
         Some(algorithm) => match algorithm {
             api::policy::Algorithm::ArgonPolicy(policy) => validate_argon(policy)?,
             api::policy::Algorithm::BcryptPolicy(policy) => validate_bcrypt(policy)?,
-            api::policy::Algorithm::Pbkfd2Policy(_pbdkfd2) => {},
+            api::policy::Algorithm::Pbkdf2Policy(policy) => validate_pbkdf2(policy)?,
         },
         None => return Err(ErrorCode::AlgorthimMandatory.with_msg("Please provide an algorithm")),
     };
@@ -85,6 +85,16 @@ fn validate_bcrypt(policy: &api::BCryptPolicy) -> Result<(), VaultError> {
     if !BCRYPT_COST.contains(&policy.cost) {
         return Err(ErrorCode::InvalidBcryptCost.with_msg(&format!("Bcrypt cost must be in the range {:?}", BCRYPT_COST)))
     }
+
+    Ok(())
+}
+
+fn validate_pbkdf2(policy: &api::Pbkdf2Policy) -> Result<(), VaultError> {
+
+    // TODO: Cost should be more than zero.
+
+    // TODO: This should match the policy max password len.
+    // policy.dk_len
 
     Ok(())
 }

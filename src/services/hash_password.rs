@@ -1,6 +1,5 @@
-use super::ServiceContext;
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, utils::{errors::VaultError, mongo}};
+use crate::{db, grpc::api, utils::{context::ServiceContext, errors::VaultError, mongo}};
 
 ///
 /// Validate the password against the current password policy.

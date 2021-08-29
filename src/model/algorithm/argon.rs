@@ -113,7 +113,7 @@ impl From<&api::policy::Algorithm> for Option<ArgonPolicy> {
                 })
             },
             api::policy::Algorithm::BcryptPolicy(_) => None,
-            api::policy::Algorithm::Pbkfd2Policy(_) => None,
+            api::policy::Algorithm::Pbkdf2Policy(_) => None,
         }
     }
 }

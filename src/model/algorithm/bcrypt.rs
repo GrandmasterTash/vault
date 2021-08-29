@@ -24,7 +24,7 @@ impl Default for BCryptPolicy {
     fn default() -> Self {
         Self {
             version: BCryptVersion::TwoB,
-            cost: 4 // Performance for tests - always chose stronger in prod.
+            cost: bcrypt::DEFAULT_COST
         }
     }
 }
@@ -81,7 +81,7 @@ impl From<&api::policy::Algorithm> for Option<BCryptPolicy> {
                 })
             },
             api::policy::Algorithm::ArgonPolicy(_)  => None,
-            api::policy::Algorithm::Pbkfd2Policy(_) => None,
+            api::policy::Algorithm::Pbkdf2Policy(_) => None,
         }
     }
 }

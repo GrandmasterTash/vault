@@ -135,6 +135,7 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
 
         // Destroy any previous test client.
         ctx.client.take();
+        ctx.admin.take();
     }
 
     // If the server is not running, start it.
@@ -162,9 +163,30 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
             });
         }));
 
-        // TEMP: Let Kafka rebalance so the consumer will receive our messages.
-        // tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        // println!("TEMP: Sleep hack to allow Kafka consumer to rebalance...");
+        // Connect a test client to the service - the closure is used in retry spawn below.
+        // let port = ctx.config.get("PORT");
+        // let connect = move || {
+        //     VaultClient::connect(format!("http://[::]:{}", port))
+        // };
+
+        // // Try to connect for up-to 1 minute.
+        // let client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+        //     .await
+        //     .expect("Unable to connect test client to server under test");
+
+        // // Need to establish an admin client too.
+        // let connect = move || {
+        //     AdminClient::connect(format!("http://[::]:{}", port))
+        // };
+
+        // // Try to connect for up-to 1 minute.
+        // let admin_client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+        //     .await
+        //     .expect("Unable to connect admin test client to server under test");
+
+        // // Put the clients in the TestContext struct for the test to use.
+        // ctx.client = Some(client);
+        // ctx.admin = Some(admin_client);
 
     } else {
         // TODO: If the server was running, reset any fixed clock that a previous test may have applied.
@@ -172,6 +194,8 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
         //     .await
         //     .unwrap();
     }
+
+    // TODO: Refactor so client not created every test. Consider holding in the other runtime.
 
     // Connect a test client to the service - the closure is used in retry spawn below.
     let port = ctx.config.get("PORT");

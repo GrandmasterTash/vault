@@ -1,6 +1,6 @@
 use mongodb::Database;
 use bson::{Document, doc};
-use crate::{model::password::Password, services::context::ServiceContext, utils::{errors::{ErrorCode, VaultError}, mongo}};
+use crate::{model::password::Password, utils::context::ServiceContext, utils::{errors::{ErrorCode, VaultError}, mongo}};
 
 
 ///

@@ -139,6 +139,12 @@ impl From<BcryptError> for VaultError {
     }
 }
 
+impl From<pbkdf2::password_hash::Error> for VaultError {
+    fn from(error: pbkdf2::password_hash::Error) -> Self {
+        ErrorCode::HashingError.with_msg(&format!("Unable to hash password: {}", error))
+    }
+}
+
 #[cfg(feature = "kafka")]
 impl From<(KafkaError, OwnedMessage)> for VaultError {
     fn from((error, message): (KafkaError, OwnedMessage)) -> Self {

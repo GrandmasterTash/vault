@@ -4,7 +4,13 @@ use crate::grpc::api;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use crate::utils::errors::{ErrorCode, VaultError};
-use crate::model::{config::prelude::*, algorithm::{Algorithm, PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
+use crate::model::{config::prelude::*, algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
+
+// TODO: Seems to dupelicate the struct below it!
+pub struct ActivePolicy {
+    pub policy: Policy,
+    pub activated_on: DateTime<Utc>,
+}
 
 ///
 /// A notification sent between instances of Vault to signify the active policy has changed.
@@ -15,7 +21,6 @@ pub struct PolicyActivated {
     pub activated_on: DateTime<Utc>,
 }
 
-// TODO: Rename the DB structs to drop the DB bit.
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Policy {
@@ -63,10 +68,11 @@ impl Default for Policy {
             lockout_seconds: 60,
             reset_timeout_seconds: 5 * 60,
             mixed_case_required: true,
-            algorithm_type: Algorithm::Argon,
-            argon_policy: Some(ArgonPolicy::default()),
+            algorithm_type: Algorithm::PBKDF2,
+            // argon_policy: Some(ArgonPolicy::default()),
+            argon_policy: None,
             bcrypt_policy: None,
-            pbkdf2_policy: None,
+            pbkdf2_policy: Some(PBKDF2Policy::default()),
             prohibited_phrases: vec!(
                 "password".to_string(),
                 "qwerty".to_string()),
@@ -181,9 +187,9 @@ impl Policy {
         self.bcrypt_policy.as_ref().unwrap()
     }
 
-    // fn pbkdf2_policy(&self) -> &PBKDF2PolicyDB {
-    //     self.pbkdf2_policy.as_ref().unwrap()
-    // }
+    fn pbkdf2_policy(&self) -> &PBKDF2Policy {
+        self.pbkdf2_policy.as_ref().unwrap()
+    }
 
     ///
     /// Use the hashing algorithm to hash the password and build a PHC string.
@@ -194,7 +200,7 @@ impl Policy {
         match self.algorithm_type {
             Algorithm::Argon  => self.argon_policy().hash_into_phc(plain_text_password),
             Algorithm::BCrypt => self.bcrypt_policy().hash_into_phc(plain_text_password),
-            Algorithm::PBKDF2 => todo!(),
+            Algorithm::PBKDF2 => self.pbkdf2_policy().hash_into_phc(plain_text_password),
         }
     }
 }
@@ -223,7 +229,7 @@ impl From<Policy> for api::Policy {
             algorithm:              match policy.algorithm_type {
                 Algorithm::Argon  => Some(api::policy::Algorithm::ArgonPolicy(policy.argon_policy().into())),
                 Algorithm::BCrypt => Some(api::policy::Algorithm::BcryptPolicy(policy.bcrypt_policy().into())),
-                Algorithm::PBKDF2 => todo!(),
+                Algorithm::PBKDF2 => Some(api::policy::Algorithm::Pbkdf2Policy(policy.pbkdf2_policy().into())),
             }
         }
     }
@@ -278,18 +284,7 @@ impl From<Option<&api::policy::Algorithm>> for Algorithm {
         match alogrithm.expect("No algorithm on the policy") { // Validated against in create_policy
             api::policy::Algorithm::ArgonPolicy(_)  => Algorithm::Argon,
             api::policy::Algorithm::BcryptPolicy(_) => Algorithm::BCrypt,
-            api::policy::Algorithm::Pbkfd2Policy(_) => Algorithm::PBKDF2,
-        }
-    }
-}
-
-// TODO: Feel this stuff should be algorithm?
-impl From<&api::policy::Algorithm> for Option<PBKDF2Policy> {
-    fn from(alogrithm: &api::policy::Algorithm) -> Self {
-        match alogrithm {
-            api::policy::Algorithm::ArgonPolicy(_)  => None,
-            api::policy::Algorithm::BcryptPolicy(_) => None,
-            api::policy::Algorithm::Pbkfd2Policy(pbkfd2) => Some(PBKDF2Policy { cost: pbkfd2.cost }),
+            api::policy::Algorithm::Pbkdf2Policy(_) => Algorithm::PBKDF2,
         }
     }
 }

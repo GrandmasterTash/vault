@@ -1,8 +1,7 @@
-use crate::model::policy::Policy;
 use mongodb::{Database, bson::doc};
 use crate::model::config::{prelude::*, Config};
+use crate::model::policy::{ActivePolicy, Policy};
 use crate::utils::errors::{ErrorCode, VaultError};
-use crate::services::context::ActivePolicy;
 
 // TODO: Instrument all db methods.
 

@@ -1,3 +1,8 @@
+TODO: PBKDF2.
+TODO: Password-types.
+TODO: Complete APIs.
+TODO: Optimise Tests.
+TODO: Document.
 
 TODO: One-time, generated password.
 TODO: Make kafak resilient against service outage.

@@ -1,5 +1,6 @@
 pub mod argon;
 pub mod bcrypt;
+pub mod pbkdf2;
 
 use std::str::FromStr;
 use derive_more::Display;
@@ -14,11 +15,6 @@ pub enum Algorithm {
 }
 
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PBKDF2Policy {
-    pub cost: u32
-}
-
 ///
 /// Validate if the plain_text_password matches the hashed password provided.
 ///
@@ -28,7 +24,7 @@ pub fn validate(plain_text_password: &str, phc: &str) -> Result<bool, VaultError
     match select(phc)? {
         Algorithm::Argon  => argon::validate(phc, plain_text_password),
         Algorithm::BCrypt => bcrypt::validate(phc, plain_text_password),
-        Algorithm::PBKDF2 => todo!(),
+        Algorithm::PBKDF2 => pbkdf2::validate(phc, plain_text_password),
     }
 }
 
@@ -50,14 +46,18 @@ impl FromStr for Algorithm {
 
     fn from_str(input: &str) -> Result<Algorithm, Self::Err> {
         match input {
-            "argon2i" |
-            "argon2d" |
+            "argon2i"  |
+            "argon2d"  |
             "argon2id" => Ok(Algorithm::Argon),
-            "2a"      |
-            "2b"      |
-            "2x"      |
-            "2y"       => Ok(Algorithm::BCrypt),
-            _          => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", input))),
+
+            "2a" |
+            "2b" |
+            "2x" |
+            "2y" => Ok(Algorithm::BCrypt),
+
+            "pbkdf2-sha256" => Ok(Algorithm::PBKDF2),
+
+            _ => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", input))),
         }
     }
 }

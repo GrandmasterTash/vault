@@ -1,15 +1,15 @@
 use std::sync::Arc;
-use crate::{APP_NAME, db};
-use crate::services::context::ServiceContext;
-use rdkafka::error::KafkaResult;
-use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
-use rdkafka::message::Message;
-use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
-use rdkafka::consumer::stream_consumer::StreamConsumer;
 use tokio::sync::mpsc;
 use tracing::instrument;
-use crate::model::policy::PolicyActivated;
+use crate::{APP_NAME, db};
+use rdkafka::message::Message;
+use rdkafka::error::KafkaResult;
 use crate::utils::mongo::generate_id;
+use crate::utils::context::ServiceContext;
+use crate::model::policy::PolicyActivated;
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
+use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
 
 /// All the topics this service needs to monitor.
 pub const CONSUMER_TOPICS: [&str;1] = ["password.policy.activated"];

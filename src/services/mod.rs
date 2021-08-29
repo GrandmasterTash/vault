@@ -4,14 +4,13 @@ mod validate_password;
 mod get_active_policy;
 mod make_active;
 mod set_time;
-pub mod context;
 
 use futures::Stream;
 use tracing::instrument;
 use std::{pin::Pin, sync::Arc};
 use crate::grpc::{api, admin, common};
 use crate::grpc::api::vault_server::Vault;
-use self::context::ServiceContext;
+use crate::utils::context::ServiceContext;
 use crate::grpc::admin::admin_server::Admin;
 use tonic::{Request, Response, Status, Streaming};
 

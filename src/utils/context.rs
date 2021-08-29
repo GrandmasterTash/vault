@@ -2,19 +2,10 @@ use mongodb::Database;
 use serde_json::Value;
 use parking_lot::{RwLock, lock_api::RwLockReadGuard};
 use chrono::{DateTime, Utc};
-use crate::{model::policy::Policy, utils::{config::Configuration, errors::VaultError, time_provider::TimeProvider}};
+use crate::{model::policy::{ActivePolicy, Policy}, utils::{config::Configuration, errors::VaultError, time_provider::TimeProvider}};
 
 #[cfg(feature = "kafka")]
 use rdkafka::producer::FutureProducer;
-
-// TODO: Move this to utils - it's not a service.
-
-
-// TODO: Move THIS to policy model.
-pub struct ActivePolicy {
-    pub policy: Policy,
-    pub activated_on: DateTime<Utc>,
-}
 
 
 ///

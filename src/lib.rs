@@ -9,10 +9,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tonic::transport::Server;
 use utils::errors::VaultError;
+use utils::context::ServiceContext;
 use utils::config::{Configuration, self};
 use grpc::api::vault_server::VaultServer;
 use grpc::admin::admin_server::AdminServer;
-use services::context::ServiceContext;
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, util::SubscriberInitExt};
 
