@@ -26,6 +26,7 @@ pub enum ErrorCode {
     PolicyMandatory                 = 1000,
     PolicyNotFound                  = 1001,
     AlgorthimMandatory              = 1002,
+    InvalidPolicy                   = 1003,
     InvalidArgonParalellism         = 1100,
     InvalidArgonTaglength           = 1101,
     InvalidBcryptCost               = 1200,
@@ -182,6 +183,7 @@ impl From<VaultError> for Status {
             InvalidArgonParalellism       |
             InvalidArgonTaglength         |
             InvalidBcryptCost             |
+            InvalidPolicy                 |
             NotEnoughLetters              |
             NotEnoughNumbers              |
             NotEnoughSymbols              |

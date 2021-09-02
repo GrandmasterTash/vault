@@ -2,23 +2,7 @@ syntax = "proto3";
 import "common.proto";
 package grpc.vault;
 
-// TODO: gRPC over TLS? All these calls should be using that really.
-// TODO: Arbtrary password 'types'. Active policy per type. That would support PINs and passwords.
-
 service Vault {
-    // TODO: Document (one password type is introduced).
-    // Maintenance orientated.
-    // TODO: Doc that active policy has eventual consistency.
-    rpc CreatePasswordPolicy (CreatePolicyRequest) returns (CreatePolicyResponse) {}
-    rpc GetActivePolicy (common.Empty) returns (GetActivePolicyResponse) {}
-    // TODO: Doc that active policy has eventual consistency.
-    rpc MakeActive (MakeActiveRequest) returns (common.Empty) {}
-    rpc GetPolicies (common.Empty) returns (GetPoliciesResponse) {}
-    rpc ImportPasswords (stream ImportPasswordRequest) returns (stream ImportPasswordResponse) {}
-    rpc InvalidatePassword (InvalidateRequest) returns (common.Empty) {} // Mark a password as needing to be changed
-    rpc DeletePassword (DeleteRequest) returns (DeleteResponse) {}
-    rpc DeletePasswords (stream DeleteRequest) returns (stream DeleteResponse) {}
-
     // User orientated (never expose to direct clients though!).
     rpc HashPassword (HashRequest) returns (HashResponse) {} // Create or overwrite an existing password.
     rpc ValidatePassword (ValidateRequest) returns (ValidateResponse) {}
@@ -26,11 +10,26 @@ service Vault {
     rpc StartResetPassword (StartResetRequest) returns (StartResetResponse) {} // 2-phase for when existing is forgotten.
     rpc CompleteResetPassword (CompleteResetRequest) returns (common.Empty) {}
 
+    // TODO: Document (one password type is introduced).
+    // Maintenance orientated.
+    // TODO: Doc that active policy has eventual consistency.
+    rpc CreatePasswordPolicy (CreatePolicyRequest) returns (CreatePolicyResponse) {}
+    rpc GetActivePolicy (GetActivePolicyRequest) returns (GetActivePolicyResponse) {}
+    // TODO: Doc that active policy has eventual consistency.
+    rpc MakeActive (MakeActiveRequest) returns (common.Empty) {}
+    rpc GetPolicies (common.Empty) returns (GetPoliciesResponse) {}
+    rpc ImportPasswords (stream ImportPasswordRequest) returns (stream ImportPasswordResponse) {}
+    rpc InvalidatePassword (InvalidateRequest) returns (common.Empty) {} // Mark a password as needing to be changed
+    rpc DeletePassword (DeleteRequest) returns (DeleteResponse) {}
+    rpc DeletePasswords (stream DeleteRequest) returns (stream DeleteResponse) {}
+    // TODO: GetPasswordTypes (configs)
+    // TODO: DeletePasswordType - (config)
 }
 
 message CreatePolicyRequest {
-    Policy policy = 1;
+    NewPolicy policy = 1;
     bool activate = 2;
+    optional string password_type = 3; // DEFAULT will be implied if not specified.
 }
 
 message Policy {
@@ -57,7 +56,30 @@ message Policy {
     }
     repeated string prohibited_phrases = 20;
     uint64 created_on = 21;
+}
 
+message NewPolicy {
+    uint32 max_history_length = 1;   // How many passwords to store in history to prevent re-use of old ones.
+    uint32 max_age_days = 2;         // Passwords will expire after this period and must be changed.
+    uint32 min_length = 3;           // Minimum number of characters allowed.
+    uint32 max_length = 4;           // Maximum number of characters allowed.
+    uint32 max_character_repeat = 5; // Maximum number of times any given character can be used. For example, If 1, 'loopy' is prohibited but 'lopy' is allowed.
+    uint32 min_letters = 6;
+    uint32 max_letters = 7;
+    uint32 min_numbers = 8;
+    uint32 max_numbers = 9;
+    uint32 min_symbols = 10;
+    uint32 max_symbols = 11;
+    uint32 max_failures = 12;
+    uint32 lockout_seconds = 13;
+    bool mixed_case_required = 14;
+    uint32 reset_timeout_seconds = 15;
+    oneof algorithm {
+        ArgonPolicy argon_policy = 16;
+        BCryptPolicy bcrypt_policy = 17;
+        PBKDF2Policy pbkdf2_policy = 18;
+    }
+    repeated string prohibited_phrases = 19;
 }
 
 // https://en.wikipedia.org/wiki/Argon2
@@ -99,12 +121,17 @@ message CreatePolicyResponse {
 
 message MakeActiveRequest {
     string policy_id = 1;
+    optional string password_type = 2; // DEFAULT will be implied if not specified.
 }
 
 message GetPoliciesResponse {
     string active_policy_id = 1;
     uint64 activated_on = 2;
     repeated Policy policies = 3;
+}
+
+message GetActivePolicyRequest {
+    optional string password_type = 1;
 }
 
 message GetActivePolicyResponse {
@@ -116,7 +143,8 @@ message ImportPasswordRequest {
     oneof password {
         string plain_text_password = 1;
         string phc_string = 2;
-    }
+    };
+    optional string password_type = 3; // DEFAULT will be implied if not specified.
 }
 
 message ImportPasswordResponse {
@@ -129,6 +157,7 @@ message ImportPasswordResponse {
 message HashRequest {
     string plain_text_password = 1;
     optional string password_id = 2;
+    optional string password_type = 3; // DEFAULT will be implied if not specified.
 }
 
 message HashResponse {
@@ -141,7 +170,7 @@ message ValidateRequest {
 }
 
 message ValidateResponse {
-    bool must_change = 1;
+    bool must_change = 1; // TODO: Consider dropping this and using an error status.
 }
 
 message InvalidateRequest {

@@ -155,9 +155,7 @@ async fn test_new_policy_can_be_retreived() {
     let now = "2021-08-23T09:30:00Z";
     helper::set_time(now, &mut ctx).await;
 
-    let mut policy = api::Policy {
-        policy_id: String::default(), // TODO: Make optional in proto?
-        created_on: u64::default(),
+    let policy = api::NewPolicy {
         max_history_length: 1,
         max_age_days: 2,
         min_length: 3,
@@ -174,7 +172,7 @@ async fn test_new_policy_can_be_retreived() {
         mixed_case_required: true,
         reset_timeout_seconds: 14,
         prohibited_phrases: vec!(String::from("1234")),
-        algorithm: Some(api::policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
+        algorithm: Some(api::new_policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
             parallelism: 15,
             tag_length: 16,
             memory_size_kb: 17,
@@ -184,22 +182,46 @@ async fn test_new_policy_can_be_retreived() {
         })),
     };
 
-    let response = helper::create_policy_assert_ok(policy.clone(), true, &mut ctx).await;
+    let response = helper::create_policy_assert_ok(policy.clone(), "DEFAULT", true, &mut ctx).await;
     let policy_id = response.policy_id;
     assert_ne!(policy_id.len(), 0);
 
     // Active policy is updated with eventual consistency, we'll wait for up to 10 seconds
     // for it to update.
-    let active_policy = helper::wait_until_active(&policy_id, ctx.client()).await;
-
-    // Add some server generated details to the expected policy.
-    policy.policy_id = policy_id;
-    policy.created_on = DateTime::parse_from_rfc3339(now)
-        .expect("test date wont parse")
-        .timestamp_millis() as u64;
+    let actual_policy = helper::wait_until_active(&policy_id, ctx.client()).await;
 
     // Are all the fields on the active policy what we specified and expected?
-    assert_eq!(active_policy, policy);
+    assert_eq!(actual_policy.policy_id, policy_id);
+    assert_eq!(actual_policy.created_on, DateTime::parse_from_rfc3339(now).expect("test date wont parse").timestamp_millis() as u64);
+    assert_eq!(actual_policy.max_history_length, 1);
+    assert_eq!(actual_policy.max_age_days, 2);
+    assert_eq!(actual_policy.min_length, 3);
+    assert_eq!(actual_policy.max_length, 4);
+    assert_eq!(actual_policy.max_character_repeat, 5);
+    assert_eq!(actual_policy.min_letters, 6);
+    assert_eq!(actual_policy.max_letters, 7);
+    assert_eq!(actual_policy.min_numbers, 8);
+    assert_eq!(actual_policy.max_numbers, 9);
+    assert_eq!(actual_policy.min_symbols, 10);
+    assert_eq!(actual_policy.max_symbols, 11);
+    assert_eq!(actual_policy.max_failures, 12);
+    assert_eq!(actual_policy.lockout_seconds, 13);
+    assert_eq!(actual_policy.mixed_case_required, true);
+    assert_eq!(actual_policy.reset_timeout_seconds, 14);
+    assert_eq!(actual_policy.prohibited_phrases, vec!(String::from("1234")));
+
+    let actual_algorithm: api::policy::Algorithm = actual_policy.algorithm.unwrap();
+    match actual_algorithm {
+        api::policy::Algorithm::ArgonPolicy(actual_algorithm) => {
+            assert_eq!(actual_algorithm.parallelism, 15);
+            assert_eq!(actual_algorithm.tag_length, 16);
+            assert_eq!(actual_algorithm.memory_size_kb, 17);
+            assert_eq!(actual_algorithm.iterations, 18);
+            assert_eq!(actual_algorithm.version, 19);
+            assert_eq!(actual_algorithm.hash_type, 2);
+        },
+        wrong @ _ => panic!("Wrong policy type returned {:?}", wrong)
+    };
 }
 
 // #[tokio::test]

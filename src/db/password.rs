@@ -1,6 +1,6 @@
 use mongodb::Database;
 use bson::{Document, doc};
-use crate::{model::password::Password, utils::context::ServiceContext, utils::{errors::{ErrorCode, VaultError}, mongo}};
+use crate::{db::mongo, model::password::Password, utils::context::ServiceContext, utils::errors::{ErrorCode, VaultError}};
 
 
 ///
@@ -23,7 +23,7 @@ pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultErr
 ///
 /// Create or update the password specified.
 ///
-pub async fn upsert(ctx: &ServiceContext, password_id: &str, phc: &str) -> Result<(), VaultError> {
+pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str, phc: &str) -> Result<(), VaultError> {
     let filter = doc! {
         "password_id": password_id,
     };
@@ -31,6 +31,7 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, phc: &str) -> Resul
     let update = doc!{
         "$set": {
             "password_id": password_id,
+            "password_type": password_type,
             "phc": phc,
             "changed_on": bson::DateTime::from_chrono(ctx.now()),
         }

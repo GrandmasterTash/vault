@@ -65,10 +65,10 @@ impl From<&BCryptPolicy> for api::BCryptPolicy {
     }
 }
 
-impl From<&api::policy::Algorithm> for Option<BCryptPolicy> {
-    fn from(alogrithm: &api::policy::Algorithm) -> Self {
+impl From<&api::new_policy::Algorithm> for Option<BCryptPolicy> {
+    fn from(alogrithm: &api::new_policy::Algorithm) -> Self {
         match alogrithm {
-            api::policy::Algorithm::BcryptPolicy(bcrypt) => {
+            api::new_policy::Algorithm::BcryptPolicy(bcrypt) => {
                 Some(BCryptPolicy {
                     version: match bcrypt.version {
                         0 => BCryptVersion::TwoA,
@@ -80,8 +80,8 @@ impl From<&api::policy::Algorithm> for Option<BCryptPolicy> {
                     cost: bcrypt.cost,
                 })
             },
-            api::policy::Algorithm::ArgonPolicy(_)  => None,
-            api::policy::Algorithm::Pbkdf2Policy(_) => None,
+            api::new_policy::Algorithm::ArgonPolicy(_)  => None,
+            api::new_policy::Algorithm::Pbkdf2Policy(_) => None,
         }
     }
 }

@@ -3,7 +3,7 @@ mod model;
 mod services;
 pub mod utils;
 
-use utils::mongo;
+use db::mongo;
 use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
@@ -69,7 +69,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
     mongo::update_mongo(&db).await?;
 
     // Load the active policy from the DB.
-    let active_policy = db::policy::load_active(&db).await?;
+    let active_policies = db::policy::load_active(&db).await?;
 
     // Create any consumer topics we need to listen to.
     #[cfg(feature = "kafka")]
@@ -79,7 +79,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let ctx = Arc::new(ServiceContext::new(
         config.clone(),
         db.clone(),
-        active_policy));
+        active_policies));
 
     #[cfg(feature = "kafka")]
     start_and_wait_for_consumer(ctx.clone()).await;

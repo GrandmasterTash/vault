@@ -56,12 +56,12 @@ impl From<&PBKDF2Policy> for api::Pbkdf2Policy {
     }
 }
 
-impl From<&api::policy::Algorithm> for Option<PBKDF2Policy> {
-    fn from(alogrithm: &api::policy::Algorithm) -> Self {
+impl From<&api::new_policy::Algorithm> for Option<PBKDF2Policy> {
+    fn from(alogrithm: &api::new_policy::Algorithm) -> Self {
         match alogrithm {
-            api::policy::Algorithm::ArgonPolicy(_)  => None,
-            api::policy::Algorithm::BcryptPolicy(_) => None,
-            api::policy::Algorithm::Pbkdf2Policy(pbkdf2) => Some(PBKDF2Policy {
+            api::new_policy::Algorithm::ArgonPolicy(_)  => None,
+            api::new_policy::Algorithm::BcryptPolicy(_) => None,
+            api::new_policy::Algorithm::Pbkdf2Policy(pbkdf2) => Some(PBKDF2Policy {
                 cost: pbkdf2.cost,
                 dk_len: pbkdf2.dk_len,
             }),

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Password {
     pub password_id: String,
+    pub password_type: Option<String>,
     pub phc: String,
     pub changed_on: bson::DateTime,
     pub last_success: Option<bson::DateTime>,

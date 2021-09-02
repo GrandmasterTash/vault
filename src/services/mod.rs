@@ -29,62 +29,62 @@ impl Vault for Arc<ServiceContext> {
     }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
-    async fn get_active_policy(&self, request: Request<common::Empty>) -> Result<Response<api::GetActivePolicyResponse>, Status> {
+    async fn get_active_policy(&self, request: Request<api::GetActivePolicyRequest>) -> Result<Response<api::GetActivePolicyResponse>, Status> {
         get_active_policy::get_active_policy(&self, request).await
     }
 
-    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap(), policy_id=?request.get_ref().policy_id))]
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn make_active(&self, request: Request<api::MakeActiveRequest>) -> Result<Response<common::Empty>, Status> {
         make_active::make_active(self, request).await
     }
 
-    #[instrument(skip(self, _request), fields(remote_addr=?_request.remote_addr().unwrap()))]
-    async fn get_policies(&self, _request: Request<common::Empty>) -> Result<Response<api::GetPoliciesResponse>, Status> {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn get_policies(&self, request: Request<common::Empty>) -> Result<Response<api::GetPoliciesResponse>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self, _request), fields(remote_addr=?_request.remote_addr().unwrap()))]
-    async fn import_passwords(&self, _request: Request<Streaming<api::ImportPasswordRequest>>) -> Result<Response<Self::ImportPasswordsStream>, Status>  {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn import_passwords(&self, request: Request<Streaming<api::ImportPasswordRequest>>) -> Result<Response<Self::ImportPasswordsStream>, Status>  {
         todo!()
     }
 
-    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap(), password_id=?request.get_ref().password_id))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn hash_password(&self, request: Request<api::HashRequest>) -> Result<Response<api::HashResponse>, Status> {
         hash_password::hash_password(self, request).await
     }
 
-    #[tracing::instrument(skip(self , request), fields(remote_addr=?request.remote_addr().unwrap(), password_id=?request.get_ref().password_id))]
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn validate_password(&self, request: Request<api::ValidateRequest>) -> Result<Response<api::ValidateResponse>, Status> {
         validate_password::validate_password(self, request).await
     }
 
-    #[instrument(skip(self))]
-    async fn start_reset_password(&self, _request: Request<api::StartResetRequest>) -> Result<Response<api::StartResetResponse>, Status> {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn start_reset_password(&self, request: Request<api::StartResetRequest>) -> Result<Response<api::StartResetResponse>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self))]
-    async fn complete_reset_password(&self, _request: Request<api::CompleteResetRequest>) -> Result<Response<common::Empty>, Status> {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn complete_reset_password(&self, request: Request<api::CompleteResetRequest>) -> Result<Response<common::Empty>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self))]
-    async fn invalidate_password(&self, _request: Request<api::InvalidateRequest>) -> Result<Response<common::Empty>, Status> {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn invalidate_password(&self, request: Request<api::InvalidateRequest>) -> Result<Response<common::Empty>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self))]
-    async fn change_password(&self, _request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn change_password(&self, request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self))]
-    async fn delete_password(&self, _request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn delete_password(&self, request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {
         todo!()
     }
 
-    #[instrument(skip(self))]
-    async fn delete_passwords(&self, _request: Request<Streaming<api::DeleteRequest>>) -> Result<Response<Self::DeletePasswordsStream>, Status>  {
+    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn delete_passwords(&self, request: Request<Streaming<api::DeleteRequest>>) -> Result<Response<Self::DeletePasswordsStream>, Status>  {
         todo!()
     }
 }

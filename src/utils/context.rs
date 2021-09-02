@@ -1,7 +1,8 @@
 use mongodb::Database;
 use serde_json::Value;
-use parking_lot::{RwLock, lock_api::RwLockReadGuard};
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use parking_lot::{RwLock, lock_api::RwLockReadGuard};
 use crate::{model::policy::{ActivePolicy, Policy}, utils::{config::Configuration, errors::VaultError, time_provider::TimeProvider}};
 
 #[cfg(feature = "kafka")]
@@ -14,7 +15,8 @@ use rdkafka::producer::FutureProducer;
 pub struct ServiceContext {
     db: Database,
     config: Configuration,
-    active_policy: RwLock<ActivePolicy>,
+    // active_policy: RwLock<ActivePolicy>,
+    active_policies: RwLock<HashMap<String/* password_type */, ActivePolicy>>,
     time_provider: RwLock<TimeProvider>,
 
     #[cfg(feature = "kafka")]
@@ -22,11 +24,14 @@ pub struct ServiceContext {
 }
 
 impl ServiceContext {
-    pub fn new(config: Configuration, db: Database, active_policy: ActivePolicy) -> Self {
+    pub fn new(config: Configuration, db: Database, active_policies: HashMap<String, ActivePolicy>)
+        -> Self {
+
         ServiceContext {
             db,
             config: config.clone(),
-            active_policy: RwLock::new(active_policy),
+            // active_policy: RwLock::new(active_policy),
+            active_policies: RwLock::new(active_policies),
             time_provider: RwLock::new(TimeProvider::default()),
 
             #[cfg(feature = "kafka")]
@@ -65,18 +70,19 @@ impl ServiceContext {
     }
 
     ///
-    /// Returns the active password policy with a read-lock guard.
+    /// Returns the active password policies with a read-lock guard.
     ///
-    pub fn active_policy(&self) -> RwLockReadGuard<'_, parking_lot::RawRwLock, ActivePolicy> {
-        self.active_policy.read()
+    pub fn active_policies(&self) -> RwLockReadGuard<'_, parking_lot::RawRwLock, HashMap<String, ActivePolicy>> {
+        self.active_policies.read()
     }
 
     ///
     /// Update the current, in-memory active password policy.
     ///
-    pub fn apply_policy(&self, policy: Policy, activated_on: DateTime<Utc>) {
-        let mut lock = self.active_policy.write();
-        *lock = ActivePolicy { policy, activated_on };
+    pub fn apply_policy(&self, policy: Policy, password_type: &str, activated_on: DateTime<Utc>) {
+        let mut lock = self.active_policies.write();
+        lock.insert(password_type.to_string(), ActivePolicy { policy, activated_on });
+        // *lock = ActivePolicy { policy, activated_on };
     }
 
     pub fn config(&self) -> &Configuration {

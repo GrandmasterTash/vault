@@ -2,7 +2,7 @@ use serde_json::json;
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, model::{algorithm, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
+use crate::{db, grpc::api, model::{algorithm, config::prelude::DEFAULT, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
     -> Result<Response<api::ValidateResponse>, Status> {
@@ -15,7 +15,16 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 
     // Get a snapshot of the policy as we'll need it potentially over the course of some io and
     // we don't want to hold a read lock for too long.
-    let policy = ctx.active_policy().policy.clone();
+    let policy = {
+        let password_type = password.password_type.as_deref().unwrap_or(DEFAULT);
+        let lock = ctx.active_policies();
+        // TODO: Consider putting this into a method on context that result<Policy, VaultError>....
+        match lock.get(password_type) {
+            Some(active_policy) => active_policy.policy.clone(),
+            None => return Err(Status::from(ErrorCode::ActivePolicyNotFound
+                .with_msg(&format!("No active policy found for password type {}", password_type)))),
+        }
+    };
 
     // // If we've failed too many times recently, reject the request.
     if locked_out(ctx, &password, &policy) {

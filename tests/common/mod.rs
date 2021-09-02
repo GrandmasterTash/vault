@@ -269,7 +269,8 @@ pub mod helper {
         ctx.client()
             .hash_password(Request::new(api::HashRequest {
                 plain_text_password: plain_text_password.to_string(),
-                password_id: password_id.map(|s|s.to_string())
+                password_id: password_id.map(|s|s.to_string()),
+                password_type: None,
             }))
             .await
             .unwrap() // This is the effective assert.
@@ -284,7 +285,8 @@ pub mod helper {
 
         ctx.client().hash_password(Request::new(api::HashRequest {
                 plain_text_password: plain_text_password.to_string(),
-                password_id: password_id.map(|s|s.to_string())
+                password_id: password_id.map(|s|s.to_string()),
+                password_type: None,
             }))
             .await
             .err()
@@ -326,12 +328,13 @@ pub mod helper {
     ///
     /// Test helper to call the create policy API when the response is expected to be a success.
     ///
-    pub async fn create_policy_assert_ok(policy: api::Policy, activate: bool, ctx: &mut TestContextLock<'_>)
+    pub async fn create_policy_assert_ok(policy: api::NewPolicy, password_type: &str, activate: bool, ctx: &mut TestContextLock<'_>)
         -> api::CreatePolicyResponse {
 
         let request = Request::new(api::CreatePolicyRequest{
             policy: Some(policy),
             activate,
+            password_type: Some(password_type.to_string())
         });
 
         ctx.client().create_password_policy(request)
@@ -347,7 +350,9 @@ pub mod helper {
     pub async fn _get_active_policy_assert_ok(ctx: &mut TestContextLock<'_>)
         -> api::GetActivePolicyResponse {
 
-        let request = Request::new(common::Empty::default());
+        let request = Request::new(api::GetActivePolicyRequest{
+            password_type: None,
+        });
 
         ctx.client().get_active_policy(request)
             .await
@@ -362,7 +367,10 @@ pub mod helper {
     ///
     pub async fn make_active_and_wait(policy_id: &str, ctx: &mut TestContextLock<'_>) {
 
-        let request = Request::new(api::MakeActiveRequest{  policy_id: policy_id.to_string() });
+        let request = Request::new(api::MakeActiveRequest{
+            policy_id: policy_id.to_string(),
+            password_type: None
+        });
 
         ctx.client().make_active(request)
             .await
@@ -394,7 +402,9 @@ pub mod helper {
     async fn get_active_policy_assert_id(expected_id: String, mut client: VaultClient<tonic::transport::Channel>) 
         -> Result<api::Policy, ()> {
 
-        let request = tonic::Request::new(vault::grpc::common::Empty::default());
+        let request = tonic::Request::new(vault::grpc::api::GetActivePolicyRequest{
+            password_type: None,
+        });
 
         let actual = client.get_active_policy(request)
             .await

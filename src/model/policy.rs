@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::utils::errors::{ErrorCode, VaultError};
 use crate::model::{config::prelude::*, algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
 
-// TODO: Seems to dupelicate the struct below it!
+///
+/// In-memory cache of the active policy - held in a map where password_type is the key.
+///
 pub struct ActivePolicy {
     pub policy: Policy,
     pub activated_on: DateTime<Utc>,
@@ -18,6 +20,7 @@ pub struct ActivePolicy {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PolicyActivated {
     pub policy_id: String,
+    pub password_type: String,
     pub activated_on: DateTime<Utc>,
 }
 
@@ -241,11 +244,12 @@ impl From<Policy> for Option<api::Policy> {
     }
 }
 
-impl From<api::Policy> for Policy {
-    fn from(policy: api::Policy) -> Self {
+impl From<api::NewPolicy> for Policy {
+    fn from(policy: api::NewPolicy) -> Self {
         Policy {
-            policy_id:             policy.policy_id,
-            created_on:            bson::DateTime::from_millis(policy.created_on as i64),
+            policy_id:             String::default(),
+            // created_on:            bson::DateTime::from_millis(policy.created_on as i64),
+            created_on:            bson::DateTime::now(),
             max_history_length:    policy.max_history_length,
             max_age_days:          policy.max_age_days,
             min_length:            policy.min_length,
@@ -279,12 +283,12 @@ impl From<api::Policy> for Policy {
     }
 }
 
-impl From<Option<&api::policy::Algorithm>> for Algorithm {
-    fn from(alogrithm: Option<&api::policy::Algorithm>) -> Self {
+impl From<Option<&api::new_policy::Algorithm>> for Algorithm {
+    fn from(alogrithm: Option<&api::new_policy::Algorithm>) -> Self {
         match alogrithm.expect("No algorithm on the policy") { // Validated against in create_policy
-            api::policy::Algorithm::ArgonPolicy(_)  => Algorithm::Argon,
-            api::policy::Algorithm::BcryptPolicy(_) => Algorithm::BCrypt,
-            api::policy::Algorithm::Pbkdf2Policy(_) => Algorithm::PBKDF2,
+            api::new_policy::Algorithm::ArgonPolicy(_)  => Algorithm::Argon,
+            api::new_policy::Algorithm::BcryptPolicy(_) => Algorithm::BCrypt,
+            api::new_policy::Algorithm::Pbkdf2Policy(_) => Algorithm::PBKDF2,
         }
     }
 }

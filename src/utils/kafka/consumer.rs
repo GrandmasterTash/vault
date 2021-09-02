@@ -4,7 +4,7 @@ use tracing::instrument;
 use crate::{APP_NAME, db};
 use rdkafka::message::Message;
 use rdkafka::error::KafkaResult;
-use crate::utils::mongo::generate_id;
+use crate::db::mongo::generate_id;
 use crate::utils::context::ServiceContext;
 use crate::model::policy::PolicyActivated;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -122,9 +122,9 @@ async fn handle_policy_activated(topic: &str, payload: &str, ctx: Arc<ServiceCon
                 .await
                 .expect(&format!("failed to load policy {} from the db", payload.policy_id));
 
-            ctx.apply_policy(policy, payload.activated_on);
+            ctx.apply_policy(policy, &payload.password_type, payload.activated_on);
 
-            tracing::info!("Password policy {} activated", payload.policy_id);
+            tracing::info!("Password policy {} activated for password type {}", payload.policy_id, payload.password_type);
         },
         Err(err) => tracing::warn!("Unable to process message on topic: {}: {}: {}", topic, payload, err),
     };

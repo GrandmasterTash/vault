@@ -4,10 +4,12 @@ use self::prelude::*;
 
 // This ensures only one persisted document exists.
 pub mod prelude {
-    pub const SINGLETON: &str = "SINGLETON";   // TODO: Drop this when pwd-groups are added? Have a config per group.
+    // TODO: move default to model.mod
+    // pub const SINGLETON: &str = "SINGLETON";   // TODO: Drop this when pwd-groups are added? Have a config per group.
     pub const DEFAULT:   &str = "DEFAULT";
 
-    pub const CONFIG_ID:        &str = "config_id";
+    // TODO: Move these to db.mod
+    pub const PASSWORD_TYPE:    &str = "password_type";
     pub const ACTIVATED_ON:     &str = "activated_on";
     pub const ACTIVE_POLICY_ID: &str = "active_policy_id";
 }
@@ -18,7 +20,8 @@ pub mod prelude {
 ///
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
-    config_id: String,            // Always 'SINGLETON' TODO: Until we have password groups/types.
+    // config_id: String,            // Always 'SINGLETON' TODO: Until we have password groups/types.
+    pub password_type: String, // Unique identifier.
     pub active_policy_id: String,
     pub activated_on: bson::DateTime
 }
@@ -27,7 +30,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            config_id: SINGLETON.to_string(),
+            password_type: DEFAULT.to_string(),
             active_policy_id: DEFAULT.to_string(),
             activated_on: Utc::now().into()
         }

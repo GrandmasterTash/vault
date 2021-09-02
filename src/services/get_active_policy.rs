@@ -1,15 +1,25 @@
-use tonic::{Request, Response, Status};
-use crate::grpc::{api, common};
 use super::ServiceContext;
+use tonic::{Request, Response, Status};
+use crate::{grpc::api, model::config::prelude::DEFAULT, utils::errors::ErrorCode};
 
 
-pub async fn get_active_policy(ctx: &ServiceContext, _request: Request<common::Empty>)
+pub async fn get_active_policy(ctx: &ServiceContext, request: Request<api::GetActivePolicyRequest>)
     -> Result<Response<api::GetActivePolicyResponse>, Status> {
 
-    let active_policy = ctx.active_policy();
+    let request = request.into_inner();
+    let password_type = request.password_type.unwrap_or(DEFAULT.to_string());
 
-    Ok(Response::new(api::GetActivePolicyResponse {
-        policy: active_policy.policy.clone().into(),
-        activated_on: active_policy.activated_on.timestamp_millis() as u64,
-    }))
+    let lock = ctx.active_policies();
+    let active_policy = lock.get(&password_type);
+
+    match active_policy {
+        Some(active_policy) => Ok(Response::new(api::GetActivePolicyResponse {
+                policy: active_policy.policy.clone().into(),
+                activated_on: active_policy.activated_on.timestamp_millis() as u64,
+            })),
+
+        None => Err(ErrorCode::ActivePolicyNotFound
+            .with_msg(&format!("Unable to find an active policy for password type {}", password_type)))?
+    }
+
 }

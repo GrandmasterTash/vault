@@ -94,10 +94,10 @@ impl From<&ArgonPolicy> for api::ArgonPolicy {
     }
 }
 
-impl From<&api::policy::Algorithm> for Option<ArgonPolicy> {
-    fn from(alogrithm: &api::policy::Algorithm) -> Self {
+impl From<&api::new_policy::Algorithm> for Option<ArgonPolicy> {
+    fn from(alogrithm: &api::new_policy::Algorithm) -> Self {
         match alogrithm {
-            api::policy::Algorithm::ArgonPolicy(argon) => {
+            api::new_policy::Algorithm::ArgonPolicy(argon) => {
                 Some(ArgonPolicy{
                     parallelism:    argon.parallelism,
                     tag_length:     argon.tag_length,
@@ -112,8 +112,8 @@ impl From<&api::policy::Algorithm> for Option<ArgonPolicy> {
                     },
                 })
             },
-            api::policy::Algorithm::BcryptPolicy(_) => None,
-            api::policy::Algorithm::Pbkdf2Policy(_) => None,
+            api::new_policy::Algorithm::BcryptPolicy(_) => None,
+            api::new_policy::Algorithm::Pbkdf2Policy(_) => None,
         }
     }
 }
