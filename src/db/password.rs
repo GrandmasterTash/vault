@@ -6,6 +6,7 @@ use crate::{db::mongo, model::password::Password, utils::context::ServiceContext
 ///
 /// Load the requested password from the database.
 ///
+#[tracing::instrument(skip(db))]
 pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultError> {
 
     let filter = doc!{ "password_id": password_id };
@@ -23,6 +24,7 @@ pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultErr
 ///
 /// Create or update the password specified.
 ///
+#[tracing::instrument(skip(ctx, phc))]
 pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str, phc: &str) -> Result<(), VaultError> {
     let filter = doc! {
         "password_id": password_id,
@@ -47,6 +49,7 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
 ///
 /// Bump the failure count and, if not set yet, timestamp the failure date.
 ///
+#[tracing::instrument(skip(ctx, password), fields(password_id=?password.password_id))]
 pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password) -> Result<(), VaultError> {
 
     let filter = doc!{ "password_id": &password.password_id };
@@ -71,6 +74,7 @@ pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password) -
 ///
 /// Clear any failure details and timestamp a successful validate operation.
 ///
+#[tracing::instrument(skip(ctx, password), fields(password_id=?password.password_id))]
 pub async fn clear_failure_details(ctx: &ServiceContext, password: &Password) -> Result<(), VaultError> {
 
     let filter = doc!{ "password_id": &password.password_id };

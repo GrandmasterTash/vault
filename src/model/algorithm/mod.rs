@@ -69,11 +69,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_select_argon2id() -> Result<(), VaultError> {
+    fn test_select_returns_argon_from_phc() -> Result<(), VaultError> {
+        let phc = "$argon2i$v=19$m=16384,t=20,p=1$77QFGJMDLMwvR7+lYvuNtw$82Byd2enomP62Z01Wcb1g5+KApYhQygW6BEYCXnZj5A";
+        assert_eq!(select(phc)?, Algorithm::Argon);
+
+        let phc = "$argon2d$v=19$m=16384,t=20,p=1$77QFGJMDLMwvR7+lYvuNtw$82Byd2enomP62Z01Wcb1g5+KApYhQygW6BEYCXnZj5A";
+        assert_eq!(select(phc)?, Algorithm::Argon);
+
         let phc = "$argon2id$v=19$m=16384,t=20,p=1$77QFGJMDLMwvR7+lYvuNtw$82Byd2enomP62Z01Wcb1g5+KApYhQygW6BEYCXnZj5A";
         assert_eq!(select(phc)?, Algorithm::Argon);
         Ok(())
     }
 
-    // TODO: Lots more unit tests please!
+    #[test]
+    fn test_select_returns_bcrypt_from_phc() -> Result<(), VaultError> {
+        let phc = "$2a$04$W0DIaTXVQSS2XED2bjStKO7AazXOlO.eC6/q.3VDhs0n5.xIOlSCS";
+        assert_eq!(select(phc)?, Algorithm::BCrypt);
+
+        let phc = "$2b$04$W0DIaTXVQSS2XED2bjStKO7AazXOlO.eC6/q.3VDhs0n5.xIOlSCS";
+        assert_eq!(select(phc)?, Algorithm::BCrypt);
+
+        let phc = "$2x$04$W0DIaTXVQSS2XED2bjStKO7AazXOlO.eC6/q.3VDhs0n5.xIOlSCS";
+        assert_eq!(select(phc)?, Algorithm::BCrypt);
+
+        let phc = "$2y$04$W0DIaTXVQSS2XED2bjStKO7AazXOlO.eC6/q.3VDhs0n5.xIOlSCS";
+        assert_eq!(select(phc)?, Algorithm::BCrypt);
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_returns_pbkdf2_from_phc() -> Result<(), VaultError> {
+        let phc = "$pbkdf2-sha256$i=4,l=16$FE+25Z4NMtEnKEOnNSHZEw$jrsU6A1tBrv09TwFoVNJEg";
+        assert_eq!(select(phc)?, Algorithm::PBKDF2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_select_returns_error_from_invalid_phc() -> Result<(), VaultError> {
+        let phc = "$wobble$i=4,l=16$FE+25Z4NMtEnKEOnNSHZEw$jrsU6A1tBrv09TwFoVNJEg";
+        // TODO: How to test errors?
+        // assert_eq!(select(phc), VaultError{error_code: ErrorCode::InvalidPHCFormat, message: _});
+        Ok(())
+    }
 }

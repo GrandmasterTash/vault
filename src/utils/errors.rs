@@ -7,7 +7,7 @@ use bson::document::ValueAccessError;
 #[cfg(feature = "kafka")]
 use rdkafka::{error::KafkaError, message::OwnedMessage};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ErrorCode {
     TonicStartError                 = 0400,
     HashThreadingIssue              = 0401,
@@ -52,7 +52,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct VaultError {
     error_code: ErrorCode,
     message: String,

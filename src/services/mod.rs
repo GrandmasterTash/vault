@@ -14,6 +14,7 @@ use crate::utils::context::ServiceContext;
 use crate::grpc::admin::admin_server::Admin;
 use tonic::{Request, Response, Status, Streaming};
 
+// TODO: Trace status of each API call in response.
 
 ///
 /// Implemention for all the gRPC service endpoints defined in the vault.proto file.

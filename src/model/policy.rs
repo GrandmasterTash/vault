@@ -292,3 +292,145 @@ impl From<Option<&api::new_policy::Algorithm>> for Algorithm {
         }
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_pattern_prohibited_phrases() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("password123");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::PasswordContainsBannedPhrase,
+            "the phrase 'password' is not allowed"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_min_length() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("A!1");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::PasswordTooShort,
+            "passwords must be at least 8 characters"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_max_length() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!£$%^&*()_+-='@;:#~[{]},<.>/?`¬01234567890abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!£$%^&*()_+-='@;:#~[{]},<.>/?`¬01234567890");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::PasswordTooLong,
+            "passwords may not be more than 128 characters"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_repeated() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("A!heelllo");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::CharacterRepeatedTooManyTimes,
+            "'l' was repeated too many times (2 is the maximum)"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_min_letters() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("!123456789");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::NotEnoughLetters,
+            "a password must contain at least 1 letters"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_max_letters() -> Result<(), VaultError> {
+        let mut policy = Policy::default();
+        policy.max_letters = 4;
+        let result = policy.validate_pattern("!1abcdefg");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::TooManyLetters,
+            "a password must not contain more than 4 letters"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_min_numbers() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("!abcdefg");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::NotEnoughNumbers,
+            "a password must contain at least 1 numbers"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_max_numbers() -> Result<(), VaultError> {
+        let mut policy = Policy::default();
+        policy.max_numbers = 5;
+        let result = policy.validate_pattern("!a123456789");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::TooManyNumbers,
+            "a password must not contain more than 5 numbers"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_min_symbols() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("1abcdefg");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::NotEnoughSymbols,
+            "a password must contain at least 1 symbols"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_max_symbols() -> Result<(), VaultError> {
+        let mut policy = Policy::default();
+        policy.max_symbols = 6;
+        let result = policy.validate_pattern("!a1!\"£$%^&*()");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::TooManySymbols,
+            "a password must not contain more than 6 symbols"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_pattern_mixed_case() -> Result<(), VaultError> {
+        let policy = Policy::default();
+        let result = policy.validate_pattern("1!abcdefg");
+        let expected: Result<(), VaultError> = Err(VaultError::new(
+            ErrorCode::NotMixedCase,
+            "a password must contain a mixture of upper and lower case"));
+
+        assert_eq!(result, expected);
+        Ok(())
+    }
+}

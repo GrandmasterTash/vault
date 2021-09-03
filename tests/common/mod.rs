@@ -163,31 +163,6 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
             });
         }));
 
-        // Connect a test client to the service - the closure is used in retry spawn below.
-        // let port = ctx.config.get("PORT");
-        // let connect = move || {
-        //     VaultClient::connect(format!("http://[::]:{}", port))
-        // };
-
-        // // Try to connect for up-to 1 minute.
-        // let client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
-        //     .await
-        //     .expect("Unable to connect test client to server under test");
-
-        // // Need to establish an admin client too.
-        // let connect = move || {
-        //     AdminClient::connect(format!("http://[::]:{}", port))
-        // };
-
-        // // Try to connect for up-to 1 minute.
-        // let admin_client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
-        //     .await
-        //     .expect("Unable to connect admin test client to server under test");
-
-        // // Put the clients in the TestContext struct for the test to use.
-        // ctx.client = Some(client);
-        // ctx.admin = Some(admin_client);
-
     } else {
         // TODO: If the server was running, reset any fixed clock that a previous test may have applied.
         // lock.admin().reset_time(Request::new(common::Empty::default()))

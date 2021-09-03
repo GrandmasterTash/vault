@@ -10,8 +10,7 @@ use crate::model::policy::{ActivePolicy, Policy};
 use crate::utils::context::ServiceContext;
 use crate::utils::errors::{ErrorCode, VaultError};
 
-// TODO: Instrument all db methods.
-
+#[tracing::instrument(skip(db))]
 pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> {
 
     let result = db
@@ -29,6 +28,7 @@ pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> 
 ///
 /// Using the Config singleton document in the database, load and return the current active password policy.
 ///
+#[tracing::instrument(skip(db))]
 pub async fn load_active(db: &Database)
     -> Result<HashMap<String/* password_type */, ActivePolicy>, VaultError> {
 
@@ -60,11 +60,10 @@ pub async fn load_active(db: &Database)
     Ok(active_policies)
 }
 
-
+#[tracing::instrument(skip(ctx))]
 pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &ServiceContext) -> Result<DateTime<Utc>, VaultError> {
     let now = ctx.now();
     let filter = doc! { "password_type": password_type };
-
     let update = doc!{
         "$set": {
             PASSWORD_TYPE: password_type,
@@ -81,6 +80,7 @@ pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &Servi
     Ok(now)
 }
 
+#[tracing::instrument(skip(db))]
 pub async fn policy_exists(policy_id: &str, db: &Database) -> Result<bool, VaultError> {
     let filter = doc!{ "policy_id": policy_id };
     let count = db.collection::<Document>("Policies")

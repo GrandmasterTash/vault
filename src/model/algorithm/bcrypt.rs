@@ -85,3 +85,19 @@ impl From<&api::new_policy::Algorithm> for Option<BCryptPolicy> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_basic_hash_and_verify() -> Result<(), VaultError> {
+        let bcrypt = BCryptPolicy::default();
+        let phc = bcrypt.hash_into_phc("wibble")?;
+
+        assert_eq!(validate(&phc, "wibble")?, true);
+        assert_eq!(validate(&phc, "wobble")?, false);
+        Ok(())
+    }
+}
