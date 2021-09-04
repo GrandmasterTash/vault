@@ -10,7 +10,7 @@ service Vault {
     rpc StartResetPassword (StartResetRequest) returns (StartResetResponse) {} // 2-phase for when existing is forgotten.
     rpc CompleteResetPassword (CompleteResetRequest) returns (common.Empty) {}
 
-    // TODO: Document (one password type is introduced).
+    // TODO: Document (once password type is introduced).
     // Maintenance orientated.
     // TODO: Doc that active policy has eventual consistency.
     rpc CreatePasswordPolicy (CreatePolicyRequest) returns (CreatePolicyResponse) {}
@@ -112,7 +112,7 @@ message BCryptPolicy {
 // https://en.wikipedia.org/wiki/PBKDF2
 message PBKDF2Policy {
     uint32 cost = 1;
-    uint32 dk_len = 2;
+    uint32 output_len = 2;
 }
 
 message CreatePolicyResponse {

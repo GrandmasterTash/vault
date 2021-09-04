@@ -10,7 +10,12 @@ use crate::{utils::errors::VaultError, grpc::api};
 
 const ARGON_PARALELLISM: Range<u32> = 1..2^24;
 const ARGON_TAG_LENGTH:  Range<u32> = 4..2^32;
+const ARGON_MEMORY:      Range<u32> = 8..2^32;
+const ARGON_VERSIONS:    [u32; 2] = [16, 19];
+const ARGON_MIN_COST:    u32 = 1;
 const BCRYPT_COST:       Range<u32> = 4..32;
+const PBKDF2_MIN_COST:   u32 = 1;
+const PBKDF2_MIN_OUTPUT: u32 = 10;
 
 ///
 /// Create and potentially activates a new password policy. The policy is used to enforce password
@@ -32,12 +37,9 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
     policy.policy_id = policy_id.clone();
     policy.created_on = bson::DateTime::from_chrono(now);
 
-    // TODO: Move to db::policy
-    ctx.db().collection::<Policy>("Policies").insert_one(policy.clone(), None)
-        .await
-        .map_err(|e| VaultError::from(e))?;
+    db::policy::insert(policy.clone(), ctx.db()).await?;
 
-    ctx.send("password.policy.created", json!(policy), 1).await?;
+    ctx.send("password.policy.created", json!(policy)).await?;
 
     if request.activate {
         make_active::make_active_by_id(
@@ -53,7 +55,6 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
 /// Validate the request and return the innards if it's okay.
 ///
 fn validate_request(policy: &Option<api::NewPolicy>) -> Result<(), VaultError> {
-    // TODO: Reject if a policy_id is being provided.
 
     let policy = match policy {
         Some(policy) => policy,
@@ -61,21 +62,60 @@ fn validate_request(policy: &Option<api::NewPolicy>) -> Result<(), VaultError> {
     };
 
     // Validate the main fields on the policy make sense.
-    // TODO: xx min < max, etc. min > -1, at chars+symbols+numbers > 0
+    if policy.max_character_repeat < 1 {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The maximum character repeat value must be greater than zero"))
+    }
+
+    if policy.min_length < 1 {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum password length must be greater than zero"))
+    }
+
+    if policy.min_length > policy.max_length {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum password length must be less than the maximum password length"))
+    }
+
+    if policy.min_letters > policy.max_letters {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum number of letters must be less than the maximum number of letters"))
+    }
+
+    if policy.min_numbers > policy.max_numbers {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum number of numerics must be less than the maximum number of numerics"))
+    }
+
+    if policy.min_symbols > policy.max_symbols {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum number of symbols must be less than the maximum number of symbols"))
+    }
+
+    let total_min = policy.min_letters + policy.min_numbers + policy.min_symbols;
+
+    if total_min < policy.min_length {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum number of letters, numbers and symbols combined, must be equal to or more than the minimum password length"))
+    }
+
+    if total_min > policy.max_length {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The minimum number of letters, numbers and symbols combined, must be less than or equal to the maximum password length"))
+    }
+
+    let total_max = policy.max_letters + policy.max_numbers + policy.max_symbols;
+
+    if total_max < policy.min_length {
+        return Err(ErrorCode::InvalidPolicy.with_msg("The maximum number of letters, numbers and symbols combined, must be greater than the minimum password length"))
+    }
 
     match &policy.algorithm {
         Some(algorithm) => match algorithm {
-            api::new_policy::Algorithm::ArgonPolicy(argon) => validate_argon(argon, &policy)?,
-            api::new_policy::Algorithm::BcryptPolicy(bcrypt) => validate_bcrypt(bcrypt, &policy)?,
-            api::new_policy::Algorithm::Pbkdf2Policy(pbkdf2) => validate_pbkdf2(pbkdf2, &policy)?,
+            api::new_policy::Algorithm::ArgonPolicy(argon)   => validate_argon(argon)?,
+            api::new_policy::Algorithm::BcryptPolicy(bcrypt) => validate_bcrypt(bcrypt)?,
+            api::new_policy::Algorithm::Pbkdf2Policy(pbkdf2) => validate_pbkdf2(pbkdf2)?,
         },
-        None => return Err(ErrorCode::AlgorthimMandatory.with_msg("Please provide an algorithm")),
+        None => return Err(ErrorCode::AlgorthimMandatory.with_msg("Please provide an algorithm to hash passwords with")),
     };
 
     Ok(())
 }
 
-fn validate_argon(argon: &api::ArgonPolicy, policy: &api::NewPolicy) -> Result<(), VaultError> {
+fn validate_argon(argon: &api::ArgonPolicy) -> Result<(), VaultError> {
+
     if !ARGON_PARALELLISM.contains(&argon.parallelism) {
         return Err(ErrorCode::InvalidArgonParalellism.with_msg(&format!("Argon parallelism must be in the range {:?}", ARGON_PARALELLISM)))
     }
@@ -84,12 +124,22 @@ fn validate_argon(argon: &api::ArgonPolicy, policy: &api::NewPolicy) -> Result<(
         return Err(ErrorCode::InvalidArgonTaglength.with_msg(&format!("Argon tag length must be in the range {:?}", ARGON_TAG_LENGTH)))
     }
 
-    // TODO: More but once we have an implementation.
+    if !ARGON_VERSIONS.contains(&argon.version) {
+        return Err(ErrorCode::InvalidArgonVersion.with_msg(&format!("Argon version must be one of {:?}", ARGON_VERSIONS)))
+    }
+
+    if !ARGON_MEMORY.contains(&argon.memory_size_kb) {
+        return Err(ErrorCode::InvalidArgonMemorySize.with_msg(&format!("Argon memory size must be in the range {:?}", ARGON_MEMORY)))
+    }
+
+    if argon.iterations < ARGON_MIN_COST {
+        return Err(ErrorCode::InvalidArgonCost.with_msg("The cost must be greater than zero"))
+    }
 
     Ok(())
 }
 
-fn validate_bcrypt(bcrypt: &api::BCryptPolicy, policy: &api::NewPolicy) -> Result<(), VaultError> {
+fn validate_bcrypt(bcrypt: &api::BCryptPolicy) -> Result<(), VaultError> {
 
     if !BCRYPT_COST.contains(&bcrypt.cost) {
         return Err(ErrorCode::InvalidBcryptCost.with_msg(&format!("Bcrypt cost must be in the range {:?}", BCRYPT_COST)))
@@ -98,12 +148,15 @@ fn validate_bcrypt(bcrypt: &api::BCryptPolicy, policy: &api::NewPolicy) -> Resul
     Ok(())
 }
 
-fn validate_pbkdf2(pbkdf2: &api::Pbkdf2Policy, policy: &api::NewPolicy) -> Result<(), VaultError> {
+fn validate_pbkdf2(pbkdf2: &api::Pbkdf2Policy) -> Result<(), VaultError> {
 
-    // TODO: Cost should be more than zero.
+    if pbkdf2.cost < PBKDF2_MIN_COST {
+        return Err(ErrorCode::InvalidPbkdf2Cost.with_msg("The cost must be greater than zero"))
+    }
 
-    // TODO: This should match the policy max password len.
-    // policy.dk_len
+    if pbkdf2.output_len < PBKDF2_MIN_OUTPUT {
+        return Err(ErrorCode::InvalidPbkdf2OutputLen.with_msg("The output length (in bytes) must be 10 or more"))
+    }
 
     Ok(())
 }

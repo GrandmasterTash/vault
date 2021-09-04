@@ -11,6 +11,19 @@ use crate::utils::context::ServiceContext;
 use crate::utils::errors::{ErrorCode, VaultError};
 
 #[tracing::instrument(skip(db))]
+pub async fn insert(policy: Policy, db: &Database) -> Result<(), VaultError> {
+    let result = db.collection::<Policy>("Policies").insert_one(policy, None)
+        .await
+        .map_err(|e| VaultError::from(e))?;
+
+
+    tracing::debug!("Insert policy with MongoDB object id {}", result.inserted_id);
+
+    Ok(())
+}
+
+
+#[tracing::instrument(skip(db))]
 pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> {
 
     let result = db

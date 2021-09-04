@@ -29,7 +29,12 @@ pub enum ErrorCode {
     InvalidPolicy                   = 1003,
     InvalidArgonParalellism         = 1100,
     InvalidArgonTaglength           = 1101,
+    InvalidArgonVersion             = 1102,
+    InvalidArgonMemorySize          = 1103,
+    InvalidArgonCost                = 1104,
     InvalidBcryptCost               = 1200,
+    InvalidPbkdf2Cost               = 1300,
+    InvalidPbkdf2OutputLen          = 1301,
     PasswordContainsBannedPhrase    = 2001,
     PasswordTooShort                = 2002,
     PasswordTooLong                 = 2003,
@@ -182,7 +187,12 @@ impl From<VaultError> for Status {
             CharacterRepeatedTooManyTimes |
             InvalidArgonParalellism       |
             InvalidArgonTaglength         |
+            InvalidArgonVersion           |
+            InvalidArgonMemorySize        |
+            InvalidArgonCost              |
             InvalidBcryptCost             |
+            InvalidPbkdf2Cost             |
+            InvalidPbkdf2OutputLen        |
             InvalidPolicy                 |
             NotEnoughLetters              |
             NotEnoughNumbers              |

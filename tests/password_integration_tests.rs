@@ -159,7 +159,7 @@ async fn test_new_policy_can_be_retreived() {
         max_history_length: 1,
         max_age_days: 2,
         min_length: 3,
-        max_length: 4,
+        max_length: 24,
         max_character_repeat: 5,
         min_letters: 6,
         max_letters: 7,
@@ -196,7 +196,7 @@ async fn test_new_policy_can_be_retreived() {
     assert_eq!(actual_policy.max_history_length, 1);
     assert_eq!(actual_policy.max_age_days, 2);
     assert_eq!(actual_policy.min_length, 3);
-    assert_eq!(actual_policy.max_length, 4);
+    assert_eq!(actual_policy.max_length, 24);
     assert_eq!(actual_policy.max_character_repeat, 5);
     assert_eq!(actual_policy.min_letters, 6);
     assert_eq!(actual_policy.max_letters, 7);

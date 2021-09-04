@@ -7,14 +7,16 @@ use crate::{grpc::api, utils::errors::VaultError};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PBKDF2Policy {
     pub cost: u32,
-    pub dk_len: u32, // Derived key length in bytes (password length)
+
+    // TODO: We can also use sha256 or sha512 variants.
+    pub output_len: u32, // Hash output length in bytes
 }
 
 impl Default for PBKDF2Policy {
     fn default() -> Self {
         Self {
             cost: 1, // Do not use this in production unless you want to be brute forced.,
-            dk_len: 32,
+            output_len: 32,
         }
     }
 }
@@ -26,7 +28,7 @@ impl PBKDF2Policy {
         let salt = Salt::new(salt.as_str()).unwrap();
         let params = pbkdf2::Params {
             rounds: self.cost,
-            output_length: self.dk_len as usize,
+            output_length: self.output_len as usize,
         };
 
         // Hash password to PHC string ($pbkdf2-sha256$...)
@@ -51,7 +53,7 @@ impl From<&PBKDF2Policy> for api::Pbkdf2Policy {
     fn from(pbkdf2: &PBKDF2Policy) -> Self {
         api::Pbkdf2Policy {
             cost: pbkdf2.cost,
-            dk_len: pbkdf2.dk_len,
+            output_len: pbkdf2.output_len,
         }
     }
 }
@@ -63,7 +65,7 @@ impl From<&api::new_policy::Algorithm> for Option<PBKDF2Policy> {
             api::new_policy::Algorithm::BcryptPolicy(_) => None,
             api::new_policy::Algorithm::Pbkdf2Policy(pbkdf2) => Some(PBKDF2Policy {
                 cost: pbkdf2.cost,
-                dk_len: pbkdf2.dk_len,
+                output_len: pbkdf2.output_len,
             }),
         }
     }
@@ -84,4 +86,5 @@ mod tests {
         assert_eq!(validate(&phc, "wobble")?, false);
         Ok(())
     }
+
 }

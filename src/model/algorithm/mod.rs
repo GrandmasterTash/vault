@@ -55,7 +55,8 @@ impl FromStr for Algorithm {
             "2x" |
             "2y" => Ok(Algorithm::BCrypt),
 
-            "pbkdf2-sha256" => Ok(Algorithm::PBKDF2),
+            "pbkdf2-sha256" |
+            "pbkdf2-sha512" => Ok(Algorithm::PBKDF2),
 
             _ => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", input))),
         }

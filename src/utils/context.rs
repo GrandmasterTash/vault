@@ -40,14 +40,14 @@ impl ServiceContext {
     }
 
     #[allow(unused_variables)]
-    pub async fn send(&self, topic: &str, payload: Value, version: u8) -> Result<(), VaultError> {
+    pub async fn send(&self, topic: &str, payload: Value) -> Result<(), VaultError> {
         #[cfg(feature = "kafka")]
         crate::utils::kafka::producer::send(
             &self.producer,
             &self.config,
             topic,
             &payload.to_string(),
-            version).await?;
+            1).await?;
 
         Ok(())
     }

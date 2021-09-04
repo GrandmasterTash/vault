@@ -5,7 +5,6 @@ use self::prelude::*;
 // This ensures only one persisted document exists.
 pub mod prelude {
     // TODO: move default to model.mod
-    // pub const SINGLETON: &str = "SINGLETON";   // TODO: Drop this when pwd-groups are added? Have a config per group.
     pub const DEFAULT:   &str = "DEFAULT";
 
     // TODO: Move these to db.mod

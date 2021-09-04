@@ -4,8 +4,6 @@ use tonic::{Request, Response, Status};
 use crate::{model::config::prelude::DEFAULT, utils::errors::ErrorCode};
 use crate::{db, grpc::{api, common}, model::policy::PolicyActivated, utils::errors::VaultError};
 
-const V1: u8 = 1;
-
 pub async fn make_active(ctx: &ServiceContext, request: Request<api::MakeActiveRequest>)
     -> Result<Response<common::Empty>, Status> {
 
@@ -36,8 +34,7 @@ pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &Servi
             policy_id: policy_id.to_string(),
             password_type: password_type.to_string(),
             activated_on: when,
-        }),
-        V1).await?;
+        })).await?;
 
     Ok(())
 }

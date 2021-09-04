@@ -52,8 +52,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 
             ctx.send(
                 "password.failure.exceeded",
-                json!({ "password_id": request.password_id.clone() }),
-                1).await?;
+                json!({ "password_id": request.password_id.clone() })).await?;
         }
 
         return Err(Status::from(ErrorCode::PasswordNotMatch.with_msg("The passwords did not match")))
