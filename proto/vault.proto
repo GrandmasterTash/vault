@@ -125,9 +125,7 @@ message MakeActiveRequest {
 }
 
 message GetPoliciesResponse {
-    string active_policy_id = 1;
-    uint64 activated_on = 2;
-    repeated Policy policies = 3;
+    repeated Policy policies = 1;
 }
 
 message GetActivePolicyRequest {

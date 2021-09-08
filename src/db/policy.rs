@@ -38,6 +38,21 @@ pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> 
 }
 
 
+#[tracing::instrument(skip(db))]
+pub async fn load_all(db: &Database) -> Result<Vec<Policy>, VaultError> {
+
+    let cursor = db
+        .collection::<Policy>("Policies")
+        .find(doc!{}, None)
+        .await?;
+
+    Ok(cursor
+        .try_collect()
+        .await
+        .unwrap_or_else(|_| vec![]))
+}
+
+
 ///
 /// Using the Config singleton document in the database, load and return the current active password policy.
 ///

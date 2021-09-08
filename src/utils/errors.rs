@@ -46,9 +46,13 @@ pub enum ErrorCode {
     NotEnoughSymbols                = 2009,
     TooManySymbols                  = 2010,
     NotMixedCase                    = 2011,
+    PasswordUsedBefore              = 2012,
     PasswordNotFound                = 2101,
     TooManyFailedAttempts           = 2102,
     PasswordNotMatch                = 2103,
+    NoResetCode                     = 2200,
+    NoResetTimestamp                = 2201,
+    ResetWindowExpired              = 2202
 }
 
 impl ErrorCode {
@@ -198,10 +202,14 @@ impl From<VaultError> for Status {
             NotEnoughNumbers              |
             NotEnoughSymbols              |
             NotMixedCase                  |
+            NoResetCode                   |
+            NoResetTimestamp              |
             PasswordContainsBannedPhrase  |
             PasswordTooLong               |
             PasswordTooShort              |
+            PasswordUsedBefore            |
             PolicyMandatory               |
+            ResetWindowExpired            |
             TooManyLetters                |
             TooManyNumbers                |
             TooManySymbols => Code::InvalidArgument,

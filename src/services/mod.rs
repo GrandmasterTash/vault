@@ -1,9 +1,12 @@
+mod set_time;
+mod start_reset;
+mod make_active;
+mod get_policies;
 mod create_policy;
 mod hash_password;
+mod complete_reset;
 mod validate_password;
 mod get_active_policy;
-mod make_active;
-mod set_time;
 
 use futures::Stream;
 use tracing::instrument;
@@ -34,17 +37,17 @@ impl Vault for Arc<ServiceContext> {
         get_active_policy::get_active_policy(&self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn make_active(&self, request: Request<api::MakeActiveRequest>) -> Result<Response<common::Empty>, Status> {
         make_active::make_active(self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn get_policies(&self, request: Request<common::Empty>) -> Result<Response<api::GetPoliciesResponse>, Status> {
-        todo!()
+        get_policies::get_policies(self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn import_passwords(&self, request: Request<Streaming<api::ImportPasswordRequest>>) -> Result<Response<Self::ImportPasswordsStream>, Status>  {
         todo!()
     }
@@ -54,37 +57,37 @@ impl Vault for Arc<ServiceContext> {
         hash_password::hash_password(self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn validate_password(&self, request: Request<api::ValidateRequest>) -> Result<Response<api::ValidateResponse>, Status> {
         validate_password::validate_password(self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn start_reset_password(&self, request: Request<api::StartResetRequest>) -> Result<Response<api::StartResetResponse>, Status> {
-        todo!()
+        start_reset::start_reset_password(self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn complete_reset_password(&self, request: Request<api::CompleteResetRequest>) -> Result<Response<common::Empty>, Status> {
-        todo!()
+        complete_reset::complete_reset_password(self, request).await
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn invalidate_password(&self, request: Request<api::InvalidateRequest>) -> Result<Response<common::Empty>, Status> {
         todo!()
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn change_password(&self, request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
         todo!()
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_password(&self, request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {
         todo!()
     }
 
-    #[tracing::instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_passwords(&self, request: Request<Streaming<api::DeleteRequest>>) -> Result<Response<Self::DeletePasswordsStream>, Status>  {
         todo!()
     }

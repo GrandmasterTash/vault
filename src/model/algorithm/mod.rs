@@ -29,6 +29,17 @@ pub fn validate(plain_text_password: &str, phc: &str) -> Result<bool, VaultError
 }
 
 ///
+/// Use the phc values from an old password to hash the new password into a new phc.
+///
+pub fn rehash(plain_text_password: &str, phc: &str) -> Result<String, VaultError> {
+    match select(phc)? {
+        Algorithm::Argon  => argon::rehash_using_phc(phc, plain_text_password),
+        Algorithm::BCrypt => bcrypt::rehash_using_phc(phc, plain_text_password),
+        Algorithm::PBKDF2 => pbkdf2::rehash_using_phc(phc, plain_text_password),
+    }
+}
+
+///
 /// Parse the first part of the phc string and return the algorithm.
 ///
 fn select(phc: &str) -> Result<Algorithm, VaultError> {
@@ -108,8 +119,9 @@ mod tests {
     #[test]
     fn test_select_returns_error_from_invalid_phc() -> Result<(), VaultError> {
         let phc = "$wobble$i=4,l=16$FE+25Z4NMtEnKEOnNSHZEw$jrsU6A1tBrv09TwFoVNJEg";
-        // TODO: How to test errors?
-        // assert_eq!(select(phc), VaultError{error_code: ErrorCode::InvalidPHCFormat, message: _});
+        let result = select(phc);
+        let error = result.err().unwrap();
+        assert_eq!(error.error_code(), ErrorCode::InvalidPHCFormat);
         Ok(())
     }
 }

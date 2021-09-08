@@ -1,5 +1,5 @@
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, model::{config::prelude::DEFAULT, policy::Policy}, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}}};
+use crate::{db, grpc::api, model::{config::prelude::DEFAULT, policy::Policy}, utils::{context::ServiceContext, errors::VaultError}};
 
 ///
 /// Validate the password against the current password policy.
@@ -13,22 +13,32 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
     let password_type = request.password_type.as_deref().unwrap_or(DEFAULT);
 
     // Check password against current policy.
-    let policy = validate_password_get_policy(ctx, &request, &password_type)?;
+    let policy = validate_password_get_policy(ctx, &request, &password_type).await?;
 
-    let password_id = match request.password_id {
-        Some(password_id) => password_id.clone(),
-        None => db::mongo::generate_id(),
+    let (password_id, password) = match &request.password_id {
+        Some(password_id) => {
+            (password_id.clone(), db::password::load_if_present(password_id, ctx.db()).await?)
+        },
+        None => (db::mongo::generate_id(), None),
     };
 
     // Hash new password with a snapshot of the current policy. This is a highly CPU-bound activity so
     // perform it in the blocking thread pool not on the main event loop.
     let plain_text_password = request.plain_text_password.clone();
-    let phc = tokio::task::spawn_blocking(move || { policy.hash_into_phc(&plain_text_password) })
+    let policy_for_hashing = policy.clone();
+    let phc = tokio::task::spawn_blocking(move || {
+            // If this is an existing password, to check it's not been used before we need to load
+            // the existing details from the DB.
+            if let Some(password) = password {
+                policy_for_hashing.validate_history(&plain_text_password, &password)?;
+            }
+            policy_for_hashing.hash_into_phc(&plain_text_password)
+        })
         .await
         .map_err(|e| VaultError::from(e))?
         ?;
 
-    let _result = db::password::upsert(&ctx, &password_id, &password_type, &phc).await?;
+    let _result = db::password::upsert(&ctx, &password_id, &password_type, &phc, policy.max_history_length).await?;
 
     Ok(Response::new(api::HashResponse { password_id }))
 }
@@ -39,17 +49,10 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 ///
 /// If it's good, return the active policy to the caller.
 ///
-fn validate_password_get_policy(ctx: &ServiceContext, request: &api::HashRequest, password_type: &str) -> Result<Policy, VaultError> {
-    let lock = ctx.active_policies();
-    let active_policy = lock.get(password_type);
+async fn validate_password_get_policy(ctx: &ServiceContext, request: &api::HashRequest, password_type: &str)
+    -> Result<Policy, VaultError> {
 
-    match active_policy {
-        Some(active_policy) => {
-            active_policy.policy.validate_pattern(&request.plain_text_password)?;
-            Ok(active_policy.policy.clone())
-        },
-
-        None => Err(ErrorCode::ActivePolicyNotFound
-            .with_msg(&format!("No active policy found for password type {}", password_type))),
-    }
+    let policy = ctx.active_policy_for_type(password_type)?;
+    policy.validate_pattern(&request.plain_text_password)?;
+    Ok(policy)
 }

@@ -101,12 +101,6 @@ async fn test_max_failures_is_enforced() {
     // Start the server if needed, and ensure this test has exclusive access.
     let mut ctx = start_vault(TestConfig::default()).await;
 
-    // Have issue where tests recieve can receive messages from previous incomplete test runs.
-    // This causes them to try to load data not present.
-    // Do we need unique topic names for the tests? i.e. policy.activated.test.guid?
-    // KAN we use an admin client to delete the topic before the server starts?
-    // tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
-
     // Apply the default policy - other tests may have changed it.
     helper::make_active_and_wait("DEFAULT", &mut ctx).await;
 
@@ -141,8 +135,8 @@ async fn test_max_failures_is_enforced() {
     assert_eq!(helper::error_code(status), 2103 /* PasswordNotMatch */);
 
     // Test the valid password is okay after the lockout.
-    let response = helper::hash_password_assert_ok(GOOD_PWD, Some(&password_id), &mut ctx).await;
-    assert_eq!(&response.password_id, &password_id);
+    let response = helper::validate_password_assert_ok(GOOD_PWD, &password_id, &mut ctx).await;
+    assert_eq!(response.must_change, false);
 }
 
 
@@ -231,7 +225,8 @@ async fn test_new_policy_can_be_retreived() {
 
 // }
 
-// TODO: Test the policy validation rules - UNIT TESTS. But do one here.
 // TODO: Test changing password checks the history limits.
+// TODO: Test the 2-phase reset password.
+// TODO: Test ALL the apis!
 
 

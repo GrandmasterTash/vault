@@ -1,7 +1,6 @@
 use std::time::Duration;
-
-use rdkafka::{ClientConfig, message::OwnedHeaders, producer::{FutureProducer, FutureRecord}};
 use crate::{APP_NAME, utils::{config::Configuration, errors::VaultError}};
+use rdkafka::{ClientConfig, message::OwnedHeaders, producer::{FutureProducer, FutureRecord}};
 
 pub fn producer(config: &Configuration) -> FutureProducer {
     ClientConfig::new()
@@ -16,7 +15,7 @@ pub async fn send(producer: &FutureProducer, config: &Configuration, topic: &str
         .send(
             FutureRecord::to(topic)
                 .payload(payload)
-                .key("EVENT_LOG") // Partition key - use for sequencing
+                .key("EVENT_LOG") // Partition key - use fixed value to ensure sequencing is in order.
                 .headers(OwnedHeaders::new()
                     .add("version", &format!("{}", version))
                     .add("sender", APP_NAME)),

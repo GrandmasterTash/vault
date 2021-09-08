@@ -6,6 +6,12 @@ use serde::{Deserialize, Serialize};
 use crate::utils::errors::{ErrorCode, VaultError};
 use crate::model::{config::prelude::*, algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
 
+use super::algorithm;
+use super::algorithm::argon;
+use super::algorithm::bcrypt;
+use super::algorithm::pbkdf2;
+use super::password::Password;
+
 ///
 /// In-memory cache of the active policy - held in a map where password_type is the key.
 ///
@@ -182,6 +188,37 @@ impl Policy {
         Ok(())
     }
 
+    ///
+    /// Check the new password has not been used before if the policy prohibits it.
+    ///
+    /// Because we never store plain-text passwords, we have to iterate each historical password,
+    /// and use the algorthm used to hash it with the new password, then compare the PHC strings.
+    ///
+    pub fn validate_history(&self, plain_text_password: &str, password: &Password)
+        -> Result<(), VaultError> {
+
+        let used_before = password.history
+            .as_deref()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .take(self.max_history_length as usize)
+            .find(|old_phc| {
+                // Re-hash the new password with the phc of this old password.
+                let new_phc = algorithm::rehash(plain_text_password, old_phc).unwrap_or(String::default());
+
+                // Compare the phc strings, if they are the same, it's the same password!
+                **old_phc == new_phc
+            })
+            .is_some();
+
+        if used_before {
+            return Err(ErrorCode::PasswordUsedBefore
+                .with_msg(&format!("The password has been used before, the last {} passwords may not be used", self.max_history_length)))
+        }
+
+        Ok(())
+    }
+
     fn argon_policy(&self) -> &ArgonPolicy {
         self.argon_policy.as_ref().unwrap()
     }
@@ -201,15 +238,15 @@ impl Policy {
     ///
     pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
         match self.algorithm_type {
-            Algorithm::Argon  => self.argon_policy().hash_into_phc(plain_text_password),
-            Algorithm::BCrypt => self.bcrypt_policy().hash_into_phc(plain_text_password),
-            Algorithm::PBKDF2 => self.pbkdf2_policy().hash_into_phc(plain_text_password),
+            Algorithm::Argon  => argon::hash_into_phc(&self.argon_policy(), plain_text_password),
+            Algorithm::BCrypt => bcrypt::hash_into_phc(&self.bcrypt_policy(), plain_text_password),
+            Algorithm::PBKDF2 => pbkdf2::hash_into_phc(&self.pbkdf2_policy(), plain_text_password),
         }
     }
 }
 
-impl From<Policy> for api::Policy {
-    fn from(policy: Policy) -> Self {
+impl From<&Policy> for api::Policy {
+    fn from(policy: &Policy) -> Self {
         api::Policy {
             policy_id:             policy.policy_id.clone(),
             created_on:            policy.created_on.timestamp_millis() as u64,
@@ -238,6 +275,12 @@ impl From<Policy> for api::Policy {
     }
 }
 
+impl From<Policy> for api::Policy {
+    fn from(policy: Policy) -> Self {
+        api::Policy::from(&policy)
+    }
+}
+
 impl From<Policy> for Option<api::Policy> {
     fn from(policy: Policy) -> Self {
         Some(policy.into())
@@ -248,7 +291,6 @@ impl From<api::NewPolicy> for Policy {
     fn from(policy: api::NewPolicy) -> Self {
         Policy {
             policy_id:             String::default(),
-            // created_on:            bson::DateTime::from_millis(policy.created_on as i64),
             created_on:            bson::DateTime::now(),
             max_history_length:    policy.max_history_length,
             max_age_days:          policy.max_age_days,
@@ -433,4 +475,6 @@ mod tests {
         assert_eq!(result, expected);
         Ok(())
     }
+
+    // TODO: Unit tests for ValidateHistory.
 }

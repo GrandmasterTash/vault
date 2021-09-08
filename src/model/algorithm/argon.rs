@@ -32,6 +32,49 @@ pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError
 }
 
 
+pub fn hash_into_phc(argon: &ArgonPolicy, plain_text_password: &str) -> Result<String, VaultError> {
+    let password = plain_text_password.as_bytes();
+    let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
+
+    let algorithm = argon2::Argon2::new(
+        None /* TODO: pepper */,
+        argon.iterations,
+        argon.memory_size_kb,
+        argon.parallelism,
+        argon2::Version::try_from(argon.version)?)?;
+
+    // Hash password to PHC string ($argon2id$v=19$...)
+    Ok(argon2::PasswordHasher::hash_password_simple(&algorithm, password, salt.as_ref())?.to_string())
+}
+
+
+///
+/// Take a pre-existing phc string, and use all the values to hash a different plain-text password
+/// to produce a new phc. Typically this can be used to compare new passwords against old password
+/// history to detect duplicates.
+///
+pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, VaultError> {
+
+    // Extract the details from the phc to apply the same hashing computation to a new plain text password.
+    let parsed_hash = argon2::PasswordHash::new(&phc).unwrap();
+    let salt = parsed_hash.salt.expect("Could not parse salt from phc");
+    let iterations = parsed_hash.params.get("t").expect("No iterations in phc").decimal().expect("Iterations in phc not numeric");
+    let memory_size_kb = parsed_hash.params.get("m").expect("No memory size in phc").decimal().expect("Memory size in phc not numeric");
+    let parallelism = parsed_hash.params.get("p").expect("No parallelism in phc").decimal().expect("Parallelism in phc no numeric");
+    let version = parsed_hash.version.expect("No version in phc");
+
+    let alogrithm = argon2::Argon2::new(
+        None /* TODO: pepper */,
+        iterations,
+        memory_size_kb,
+        parallelism,
+        argon2::Version::try_from(version)?)?;
+
+    // Hash password to PHC string ($argon2id$v=19$...)
+    Ok(argon2::PasswordHasher::hash_password_simple(&alogrithm, plain_text_password.as_bytes(), salt.as_ref())?.to_string())
+}
+
+
 impl Default for ArgonPolicy {
     fn default() -> Self {
         ArgonPolicy {
@@ -42,24 +85,6 @@ impl Default for ArgonPolicy {
             version: 19,
             hash_type: ArgonHashType::ARGON2ID
         }
-    }
-}
-
-// make module fn like validate.
-impl ArgonPolicy {
-    pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-        let password = plain_text_password.as_bytes();
-        let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
-
-        let argon2 = argon2::Argon2::new(
-            None /* TODO: pepper */,
-            self.iterations,
-            self.memory_size_kb,
-            self.parallelism,
-            argon2::Version::try_from(self.version)?)?;
-
-        // Hash password to PHC string ($argon2id$v=19$...)
-        Ok(argon2::PasswordHasher::hash_password_simple(&argon2, password, salt.as_ref())?.to_string())
     }
 }
 
@@ -126,10 +151,20 @@ mod tests {
     #[test]
     fn test_basic_hash_and_verify() -> Result<(), VaultError> {
         let argon = ArgonPolicy::default();
-        let phc = argon.hash_into_phc("wibble")?;
+        let phc = hash_into_phc(&argon, "wibble")?;
 
         assert_eq!(validate(&phc, "wibble")?, true);
         assert_eq!(validate(&phc, "wobble")?, false);
+        Ok(())
+    }
+
+    #[test]
+    fn test_use_existing_phc_details_to_rehash() -> Result<(), VaultError> {
+        let argon = ArgonPolicy::default();
+        let phc1 = hash_into_phc(&argon, "wibble")?;
+        let phc2 = rehash_using_phc(&phc1, "wibble")?;
+
+        assert_eq!(phc1, phc2);
         Ok(())
     }
 }

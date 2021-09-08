@@ -46,6 +46,7 @@ serde_json = "1.0.64"
 derive_more = "0.99.14"
 parking_lot = "0.11.1"
 #itertools = "0.10.1"
+rand = "0.8.4"
 
 # For gRPC
 tonic = "0.5.2"
@@ -76,6 +77,7 @@ rand_core = "0.6.3"
 argon2 = "0.2.2"
 bcrypt = "0.10.1"
 pbkdf2 = "0.9.0"
+base64 = "0.13.0"
 
 [build-dependencies]
 tonic-build = "0.5"

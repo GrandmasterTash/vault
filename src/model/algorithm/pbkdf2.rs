@@ -21,31 +21,52 @@ impl Default for PBKDF2Policy {
     }
 }
 
-impl PBKDF2Policy {
-    pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-        // TODO: A pepper.
-        let salt = SaltString::generate(&mut OsRng);
-        let salt = Salt::new(salt.as_str()).unwrap();
-        let params = pbkdf2::Params {
-            rounds: self.cost,
-            output_length: self.output_len as usize,
-        };
-
-        // Hash password to PHC string ($pbkdf2-sha256$...)
-        Ok(Pbkdf2.hash_password_customized(
-            plain_text_password.as_bytes(),
-            None,
-            None,
-            params,
-            salt)?.to_string())
-        // Ok(Pbkdf2.hash_password(plain_text_password.as_bytes(), &salt)?.to_string())
-    }
-}
-
 
 pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
     let parsed_hash = PasswordHash::new(&phc)?;
     Ok(Pbkdf2.verify_password(plain_text_password.as_bytes(), &parsed_hash).is_ok())
+}
+
+
+pub fn hash_into_phc(pbkdf2: &PBKDF2Policy, plain_text_password: &str) -> Result<String, VaultError> {
+    // TODO: A pepper.
+    let salt = SaltString::generate(&mut OsRng);
+    let salt = Salt::new(salt.as_str()).unwrap();
+    let params = pbkdf2::Params {
+        rounds: pbkdf2.cost,
+        output_length: pbkdf2.output_len as usize,
+    };
+
+    // Hash password to PHC string ($pbkdf2-sha256$...)
+    Ok(Pbkdf2.hash_password_customized(
+        plain_text_password.as_bytes(),
+        None,
+        None,
+        params,
+        salt)?.to_string())
+}
+
+
+///
+/// Take a pre-existing phc string, and use all the values to hash a different plain-text password
+/// to produce a new phc. Typically this can be used to compare new passwords against old password
+/// history to detect duplicates.
+///
+pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, VaultError> {
+    let parsed_hash = PasswordHash::new(&phc)?;
+
+    let params = pbkdf2::Params {
+        rounds: parsed_hash.params.get("i").expect("No rounds in phc").decimal().expect("rounds in phc was not numeric"),
+        output_length: parsed_hash.params.get("l").expect("No output length in phc").decimal().expect("output length in phc was not numeric") as usize,
+    };
+
+    Ok(Pbkdf2.hash_password_customized(
+        plain_text_password.as_bytes(),
+        None,
+        parsed_hash.version,
+        params,
+        parsed_hash.salt.unwrap())?
+        .to_string())
 }
 
 
@@ -80,10 +101,20 @@ mod tests {
     #[test]
     fn test_basic_hash_and_verify() -> Result<(), VaultError> {
         let pbkdf2 = PBKDF2Policy::default();
-        let phc = pbkdf2.hash_into_phc("wibble")?;
+        let phc = hash_into_phc(&pbkdf2, "wibble")?;
 
         assert_eq!(validate(&phc, "wibble")?, true);
         assert_eq!(validate(&phc, "wobble")?, false);
+        Ok(())
+    }
+
+    #[test]
+    fn test_use_existing_phc_details_to_rehash() -> Result<(), VaultError> {
+        let pbkdf2 = PBKDF2Policy::default();
+        let phc1 = hash_into_phc(&pbkdf2, "wibble")?;
+        let phc2 = rehash_using_phc(&phc1, "wibble")?;
+
+        assert_eq!(phc1, phc2);
         Ok(())
     }
 

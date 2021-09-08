@@ -1,6 +1,7 @@
 use rand_core::OsRng;
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
-use crate::{grpc::api, utils::errors::VaultError};
+use crate::{grpc::api, utils::errors::{ErrorCode, VaultError}};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum BCryptVersion {
@@ -16,9 +17,59 @@ pub struct BCryptPolicy {
     pub cost: u32
 }
 
+
 pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
     bcrypt::verify(plain_text_password, phc).map_err(|e| VaultError::from(e))
 }
+
+
+pub fn hash_into_phc(bcrypt: &BCryptPolicy, plain_text_password: &str) -> Result<String, VaultError> {
+    // Use argon to generate a salt.
+    let salt = argon2::password_hash::SaltString::generate(&mut OsRng); // TODO: include a pepper.
+    let salt: String = salt.as_str().chars().take(16).collect();
+    let hashed = bcrypt::hash_with_salt(plain_text_password, bcrypt.cost, salt.as_bytes())?;
+
+    Ok(hashed.format_for_version(bcrypt.version.into()))
+}
+
+
+///
+/// Take a pre-existing phc string, and use all the values to hash a different plain-text password
+/// to produce a new phc. Typically this can be used to compare new passwords against old password
+/// history to detect duplicates.
+///
+pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, VaultError> {
+
+    let version = get_internal_version(&phc)?;
+    let hashed = bcrypt::HashParts::from_str(&phc)?;
+    let salt = base64::decode_config(hashed.get_salt(), base64::BCRYPT).unwrap();
+
+    Ok(bcrypt::hash_with_salt(plain_text_password, hashed.get_cost(), &salt)?.format_for_version(version))
+}
+
+///
+/// Return the 3rd party bcrypt version enum from the phc string.
+///
+/// Needed because their implementation of HashParts doesn't expose it :(
+///
+fn get_internal_version(phc: &str) -> Result<bcrypt::Version, VaultError> {
+    let mut split = phc.split("$");
+    split.next(); /* Skip first it's blank */
+
+    match split.next() {
+        Some(algorithm) => {
+            match algorithm {
+                "2a" => Ok(bcrypt::Version::TwoA),
+                "2b" => Ok(bcrypt::Version::TwoB),
+                "2x" => Ok(bcrypt::Version::TwoX),
+                "2y" => Ok(bcrypt::Version::TwoY),
+                _    => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", algorithm))),
+            }
+        },
+        None => return Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorithm")),
+    }
+}
+
 
 impl Default for BCryptPolicy {
     fn default() -> Self {
@@ -26,17 +77,6 @@ impl Default for BCryptPolicy {
             version: BCryptVersion::TwoB,
             cost: bcrypt::DEFAULT_COST
         }
-    }
-}
-
-impl BCryptPolicy {
-    pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
-        // Use argon to generate a salt.
-        let salt = argon2::password_hash::SaltString::generate(&mut OsRng); // TODO: include a pepper.
-        let salt: String = salt.as_str().chars().take(16).collect();
-        let hashed = bcrypt::hash_with_salt(plain_text_password, self.cost, salt.as_bytes())?;
-
-        Ok(hashed.format_for_version(self.version.into()))
     }
 }
 
@@ -94,10 +134,21 @@ mod tests {
     #[test]
     fn test_basic_hash_and_verify() -> Result<(), VaultError> {
         let bcrypt = BCryptPolicy::default();
-        let phc = bcrypt.hash_into_phc("wibble")?;
+        let phc = hash_into_phc(&bcrypt, "wibble")?;
 
         assert_eq!(validate(&phc, "wibble")?, true);
         assert_eq!(validate(&phc, "wobble")?, false);
         Ok(())
     }
+
+    #[test]
+    fn test_use_existing_phc_details_to_rehash() -> Result<(), VaultError> {
+        let bcrypt = BCryptPolicy::default();
+        let phc1 = hash_into_phc(&bcrypt, "wibble")?;
+        let phc2 = rehash_using_phc(&phc1, "wibble")?;
+
+        assert_eq!(phc1, phc2);
+        Ok(())
+    }
+
 }

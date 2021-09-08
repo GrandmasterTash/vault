@@ -3,10 +3,13 @@ use serde_json::Value;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use parking_lot::{RwLock, lock_api::RwLockReadGuard};
-use crate::{model::policy::{ActivePolicy, Policy}, utils::{config::Configuration, errors::VaultError, time_provider::TimeProvider}};
+use crate::{model::policy::{ActivePolicy, Policy}, utils::{config::Configuration, errors::{ErrorCode, VaultError}, time_provider::TimeProvider}};
 
 #[cfg(feature = "kafka")]
 use rdkafka::producer::FutureProducer;
+
+
+type ActivePoliciesRwLock<'a> = RwLockReadGuard<'a, parking_lot::RawRwLock, HashMap<String, ActivePolicy>>;
 
 
 ///
@@ -15,13 +18,13 @@ use rdkafka::producer::FutureProducer;
 pub struct ServiceContext {
     db: Database,
     config: Configuration,
-    // active_policy: RwLock<ActivePolicy>,
     active_policies: RwLock<HashMap<String/* password_type */, ActivePolicy>>,
     time_provider: RwLock<TimeProvider>,
 
     #[cfg(feature = "kafka")]
     producer: FutureProducer,
 }
+
 
 impl ServiceContext {
     pub fn new(config: Configuration, db: Database, active_policies: HashMap<String, ActivePolicy>)
@@ -30,7 +33,6 @@ impl ServiceContext {
         ServiceContext {
             db,
             config: config.clone(),
-            // active_policy: RwLock::new(active_policy),
             active_policies: RwLock::new(active_policies),
             time_provider: RwLock::new(TimeProvider::default()),
 
@@ -39,6 +41,9 @@ impl ServiceContext {
         }
     }
 
+    ///
+    /// Publish the JSON payload to the topic specified - if Kafka is configured.
+    ///
     #[allow(unused_variables)]
     pub async fn send(&self, topic: &str, payload: Value) -> Result<(), VaultError> {
         #[cfg(feature = "kafka")]
@@ -65,15 +70,25 @@ impl ServiceContext {
         self.time_provider.write().fix(now);
     }
 
-    pub fn db(&self) -> &Database {
-        &self.db
-    }
-
     ///
     /// Returns the active password policies with a read-lock guard.
     ///
-    pub fn active_policies(&self) -> RwLockReadGuard<'_, parking_lot::RawRwLock, HashMap<String, ActivePolicy>> {
+    pub fn active_policies(&self) -> ActivePoliciesRwLock {
         self.active_policies.read()
+    }
+
+    ///
+    /// If there is an active policy for the password type specified, return a CLONE of it -
+    /// otherwise return an error.
+    ///
+    pub fn active_policy_for_type(&self, password_type: &str) -> Result<Policy, VaultError> {
+
+        let lock = self.active_policies.read();
+        match lock.get(password_type) {
+            Some(active_policy) => Ok(active_policy.policy.clone()),
+            None => Err(ErrorCode::ActivePolicyNotFound
+                .with_msg(&format!("Unable to find an active policy for password type {}", password_type))),
+        }
     }
 
     ///
@@ -82,7 +97,10 @@ impl ServiceContext {
     pub fn apply_policy(&self, policy: Policy, password_type: &str, activated_on: DateTime<Utc>) {
         let mut lock = self.active_policies.write();
         lock.insert(password_type.to_string(), ActivePolicy { policy, activated_on });
-        // *lock = ActivePolicy { policy, activated_on };
+    }
+
+    pub fn db(&self) -> &Database {
+        &self.db
     }
 
     pub fn config(&self) -> &Configuration {

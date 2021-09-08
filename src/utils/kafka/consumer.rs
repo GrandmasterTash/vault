@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::instrument;
 use crate::{APP_NAME, db};
+use rdkafka::message::Headers;
 use rdkafka::message::Message;
 use rdkafka::error::KafkaResult;
 use crate::db::mongo::generate_id;
@@ -15,10 +16,10 @@ use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
 pub const CONSUMER_TOPICS: [&str;1] = ["password.policy.activated"];
 
 // Because our app produces and consumes to/from the same topic, we need a signal during start-up
-// that stops the server starting, until the consumergroup has been balanced and we know that
+// that suspends the server start-up, until the consumergroup has been balanced and we know that
 // our consumer will receive new messages on that topic.
 //
-// Without this, our server can send messages which it needs to listen to (policy eventual
+// Without this, our server can send messages which it needs to listen to (active policy eventual
 // consistency for example), but it would never receive those messages (and we always want latest
 // offset when connecting).
 struct CustomContext {
@@ -40,7 +41,7 @@ impl ConsumerContext for CustomContext {
         let tx = self.tx.clone();
         let _ = tokio::spawn(async move {
             tracing::debug!("Kafka consumer notifying server it's ready to receive");
-            let _ = tx.send(true).await; // Ignore any send failures.
+            let _ = tx.send(true).await; // Ignore any send failures - main start-up will timeout anyway.
         });
     }
 
@@ -86,15 +87,15 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
                     }
                 };
 
-                // tracing::info!("key: '{:?}', payload: '{}', topic: {}, partition: {}, offset: {}, timestamp: {:?}",
-                //         m.key(), payload, m.topic(), m.partition(), m.offset(), m.timestamp());
+                tracing::debug!("key: '{:?}', payload: '{}', topic: {}, partition: {}, offset: {}, timestamp: {:?}",
+                        m.key(), payload, m.topic(), m.partition(), m.offset(), m.timestamp());
 
-                // if let Some(headers) = m.headers() {
-                //     for i in 0..headers.count() {
-                //         let header = headers.get(i).unwrap();
-                //         tracing::info!("  Header {:#?}: {:?}", header.0, header.1);
-                //     }
-                // }
+                if let Some(headers) = m.headers() {
+                    for i in 0..headers.count() {
+                        let header = headers.get(i).unwrap();
+                        tracing::debug!("  Header {:#?}: {:?}", header.0, header.1);
+                    }
+                }
 
                 consumer.commit_message(&m, CommitMode::Async).unwrap();
 
