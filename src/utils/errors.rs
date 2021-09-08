@@ -52,7 +52,8 @@ pub enum ErrorCode {
     PasswordNotMatch                = 2103,
     NoResetCode                     = 2200,
     NoResetTimestamp                = 2201,
-    ResetWindowExpired              = 2202
+    ResetWindowExpired              = 2202,
+    DeleteByNotSpecified            = 2300,
 }
 
 impl ErrorCode {
@@ -189,6 +190,7 @@ impl From<VaultError> for Status {
 
             AlgorthimMandatory            |
             CharacterRepeatedTooManyTimes |
+            DeleteByNotSpecified          |
             InvalidArgonParalellism       |
             InvalidArgonTaglength         |
             InvalidArgonVersion           |

@@ -54,6 +54,7 @@ prost = "0.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 # For stream request / response.
 futures = { version = "0.3.15", default-features = false, features = ["alloc"] }
+tokio-stream = { version =  "0.1", features = ["net"] }
 
 # For Config.
 dotenv = "0.15.0"
@@ -61,10 +62,8 @@ config = "0.11.0"
 ansi_term = "0.12.1"
 
 # For Mongo. Beta required for Tokio 1.x
-mongodb = "2.0.0-beta.3"
-#mongodb = "1.2.2"
-#bson = "1.2.2"
-bson = { version = "2.0.0-beta.3", features = [ "chrono-0_4", "u2i" ] }
+mongodb = "2.0.0"
+bson = { version = "2.0.0", features = [ "chrono-0_4" ] }
 uuid = "0.8.2"
 chrono = { version = "0.4.19", features = ["serde"] }
 #futures = "0.3.15"

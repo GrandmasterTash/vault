@@ -102,6 +102,8 @@ fn validate_request(policy: &Option<api::NewPolicy>) -> Result<(), VaultError> {
         return Err(ErrorCode::InvalidPolicy.with_msg("The maximum number of letters, numbers and symbols combined, must be greater than the minimum password length"))
     }
 
+    // TODO: If mixed case, min letters > 1
+
     match &policy.algorithm {
         Some(algorithm) => match algorithm {
             api::new_policy::Algorithm::ArgonPolicy(argon)   => validate_argon(argon)?,

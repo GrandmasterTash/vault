@@ -34,6 +34,7 @@ pub async fn load_if_present(password_id: &str, db: &Database) -> Result<Option<
         .map_err(|e| VaultError::from(e))?)
 }
 
+
 ///
 /// Create or update the password specified.
 ///
@@ -72,6 +73,34 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
         .map_err(|e| VaultError::from(e))?;
 
     Ok(())
+}
+
+
+pub async fn delete(password_id: &str, db: &Database) -> Result<u64, VaultError> {
+
+    let filter = doc! {
+        "password_id": password_id,
+    };
+
+    let result = db.collection::<Document>("Passwords").delete_one(filter, None)
+        .await
+        .map_err(|e| VaultError::from(e))?;
+
+    Ok(result.deleted_count)
+}
+
+
+pub async fn delete_by_type(password_type: &str, db: &Database) -> Result<u64, VaultError> {
+
+    let filter = doc! {
+        "password_type": password_type,
+    };
+
+    let result = db.collection::<Document>("Passwords").delete_many(filter, None)
+        .await
+        .map_err(|e| VaultError::from(e))?;
+
+    Ok(result.deleted_count)
 }
 
 

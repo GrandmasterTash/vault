@@ -5,10 +5,12 @@ mod get_policies;
 mod create_policy;
 mod hash_password;
 mod complete_reset;
+mod delete_password;
 mod validate_password;
 mod get_active_policy;
 
 use futures::Stream;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::instrument;
 use std::{pin::Pin, sync::Arc};
 use crate::grpc::{api, admin, common};
@@ -25,7 +27,7 @@ use tonic::{Request, Response, Status, Streaming};
 #[tonic::async_trait]
 impl Vault for Arc<ServiceContext> {
     type ImportPasswordsStream = Pin<Box<dyn Stream<Item = Result<api::ImportPasswordResponse, Status>> + Send + Sync>>;
-    type DeletePasswordsStream = Pin<Box<dyn Stream<Item = Result<api::DeleteResponse, Status>> + Send + Sync>>;
+    type DeletePasswordsStream = ReceiverStream<Result<api::DeleteResponse, Status>>;
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn create_password_policy(&self, request: Request<api::CreatePolicyRequest>) -> Result<Response<api::CreatePolicyResponse>, Status> {
@@ -73,23 +75,18 @@ impl Vault for Arc<ServiceContext> {
     }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
-    async fn invalidate_password(&self, request: Request<api::InvalidateRequest>) -> Result<Response<common::Empty>, Status> {
-        todo!()
-    }
-
-    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn change_password(&self, request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
         todo!()
     }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_password(&self, request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {
-        todo!()
+        delete_password::delete_password(self, request).await
     }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_passwords(&self, request: Request<Streaming<api::DeleteRequest>>) -> Result<Response<Self::DeletePasswordsStream>, Status>  {
-        todo!()
+        delete_password::delete_passwords(self, request).await
     }
 }
 

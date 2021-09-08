@@ -24,6 +24,9 @@ async fn create_init_indexes(db: &Database) -> Result<(), VaultError> {
     // Note: the current driver doesn't yet support creating indexes on collections, so the dbcommand must be used instead.
     // https://docs.mongodb.com/manual/reference/command/createIndexes/#createindexes
 
+    db.run_command(doc! { "createIndexes": "Passwords", "indexes": [
+        { "key": { "password_id": 1 }, "name": "idx_password_id", "unique": true },
+        { "key": { "password_type": 1 }, "name": "idx_password_type", "unique": false }] }, None).await?;
     db.run_command(doc! { "createIndexes": "Policies", "indexes": [{ "key": { "policy_id": 1 }, "name": "idx_policy_id", "unique": true }] }, None).await?;
     db.run_command(doc! { "createIndexes": "Config",   "indexes": [{ "key": { "password_type": 1 }, "name": "idx_password_type", "unique": true }] }, None).await?;
 

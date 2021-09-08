@@ -19,11 +19,11 @@ service Vault {
     rpc MakeActive (MakeActiveRequest) returns (common.Empty) {}
     rpc GetPolicies (common.Empty) returns (GetPoliciesResponse) {}
     rpc ImportPasswords (stream ImportPasswordRequest) returns (stream ImportPasswordResponse) {}
-    rpc InvalidatePassword (InvalidateRequest) returns (common.Empty) {} // Mark a password as needing to be changed
     rpc DeletePassword (DeleteRequest) returns (DeleteResponse) {}
     rpc DeletePasswords (stream DeleteRequest) returns (stream DeleteResponse) {}
     // TODO: GetPasswordTypes (configs)
     // TODO: DeletePasswordType - (config)
+    // TODO: Count of passwords by type.
 }
 
 message CreatePolicyRequest {
@@ -171,10 +171,6 @@ message ValidateResponse {
     bool must_change = 1; // TODO: Consider dropping this and using an error status.
 }
 
-message InvalidateRequest {
-    string password_id = 1;
-}
-
 message ChangeRequest {
     string plain_text_password = 1;
     string new_plain_text_password = 2;
@@ -196,9 +192,12 @@ message CompleteResetRequest {
 }
 
 message DeleteRequest {
-    string password_id = 1;
+    oneof delete_by {
+        string password_id = 1;
+        string password_type = 2;
+    }
 }
 
 message DeleteResponse {
-    bool deleted = 1;
+    uint64 deleted_count = 1;
 }
