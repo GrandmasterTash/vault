@@ -1,5 +1,4 @@
 syntax = "proto3";
-// import "google/protobuf/empty.proto"; // Could use google.protobuf.Empty.
 package grpc.common;
 
 message Empty {}

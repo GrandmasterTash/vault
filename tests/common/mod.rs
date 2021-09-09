@@ -272,7 +272,7 @@ pub mod helper {
     /// Test helper to call the validate password API when the response is expected to be success.
     ///
     pub async fn validate_password_assert_ok(plain_text_password: &str, password_id: &str, ctx: &mut TestContextLock<'_>)
-        -> api::ValidateResponse {
+        -> bool {
 
         ctx.client()
             .validate_password(Request::new(api::ValidateRequest {
@@ -281,7 +281,9 @@ pub mod helper {
             }))
             .await
             .unwrap() // This is the effective assert.
-            .into_inner()
+            .into_inner();
+
+        true
     }
 
     ///

@@ -21,7 +21,7 @@ async fn test_a_new_password_validates_with_generated_id() {
 
     // Validate the password is okay.
     let response = helper::validate_password_assert_ok("Hello123!", &password_id, &mut ctx).await;
-    assert_eq!(response.must_change, false);
+    assert_eq!(response, true);
 
     // Validate an incorrect password does NOT match it.
     let status = helper::validate_password_assert_err("Hello456!", &password_id, &mut ctx).await;
@@ -46,7 +46,7 @@ async fn test_a_new_password_validates_with_provided_id() {
 
     // Validate the password is okay.
     let response = helper::validate_password_assert_ok("Hello123!", &password_id, &mut ctx).await;
-    assert_eq!(response.must_change, false); // This is a new password and wont have expired yet.
+    assert_eq!(response, true);
 
     // Validate an incorrect password does NOT match it.
     let status = helper::validate_password_assert_err("Hello456!", &password_id, &mut ctx).await;
@@ -75,9 +75,10 @@ async fn test_a_password_expires_after_a_period_of_time() {
     // Time-travel to > 30 days later.
     helper::set_time("2021-09-28T09:30:00Z", &mut ctx).await;
 
-    // Validate the password is okay.
-    let response = helper::validate_password_assert_ok("Hello123!", &password_id, &mut ctx).await;
-    assert_eq!(response.must_change, true); // This password should have expired now.
+    // Validate the password is okay but expired
+    let status = helper::validate_password_assert_err("Hello123!", &password_id, &mut ctx).await;
+    assert_eq!(status.code(), Code::DeadlineExceeded);
+    assert_eq!(helper::error_code(status), 2104 /* PasswordExpired */);
 }
 
 
@@ -136,7 +137,7 @@ async fn test_max_failures_is_enforced() {
 
     // Test the valid password is okay after the lockout.
     let response = helper::validate_password_assert_ok(GOOD_PWD, &password_id, &mut ctx).await;
-    assert_eq!(response.must_change, false);
+    assert_eq!(response, true);
 }
 
 

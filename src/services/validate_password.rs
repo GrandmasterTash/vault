@@ -2,10 +2,11 @@ use serde_json::json;
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, model::{algorithm, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
+use crate::{db, grpc::api, grpc::common, model::{algorithm, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
+
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
-    -> Result<Response<api::ValidateResponse>, Status> {
+    -> Result<Response<common::Empty>, Status> {
 
     // Get the domain-level gRPC request struct.
     let request = request.into_inner();
@@ -50,11 +51,16 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     }
 
     // Has the password expired? If so, indicate in the response it must be changed.
-    let must_change = expired(ctx, &password, &policy); // TODO: This should return a failure but with this body?
+    if expired(ctx, &password, &policy) {
+        return Err(Status::from(ErrorCode::PasswordExpired.with_msg("The password was accepted but has expired and must be changed")))
+    }
+
+    // TODO: When validating, compare PHC values with latest policy to see if password needs re-hashing
+    // with the latest algorithm.
 
     // Clear any failure details on the password and stamp the last successful use.
     db::password::record_success(ctx, &password).await?;
-    Ok(Response::new(api::ValidateResponse { must_change }))
+    Ok(Response::new(common::Empty{}))
 
 }
 

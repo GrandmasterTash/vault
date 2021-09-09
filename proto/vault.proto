@@ -2,84 +2,257 @@ syntax = "proto3";
 import "common.proto";
 package grpc.vault;
 
+/*
+ *   ___  ______ _____  ______
+ *  / _ \ | ___ \_   _| |  _  \
+ * / /_\ \| |_/ / | |   | | | |___   ___ ___
+ * |  _  ||  __/  | |   | | | / _ \ / __/ __|
+ * | | | || |    _| |_  | |/ / (_) | (__\__ \
+ * \_| |_/\_|    \___/  |___/ \___/ \___|___/
+ *
+ * The Vault service safely stores and validates passwords. Password policies can be defined to ensure
+ * strong passwords are used, passwords are not re-used, etc. See the Policy message below for full
+ * details.
+ *
+ *
+ * IMPORTANT!
+ *
+ * Vault apis are not designed to be called directly from any user-public endpoint. They are intended
+ * to be called from authentication orchistration services, which themselves, may be invoked directly
+ * from the end-users. Because of this, you can take measures to ensure Vault is never deployed as an
+ * edge service in your platform.
+ *
+ *
+ * PASSWORD TYPES
+ *
+ * Vault passwords can be assigned an optional 'password type'. There can be an active password policy
+ * for each defined password type. So for example, if an account has a sign-on password AND a PIN which
+ * are used elsewhere within the platform, you could have a password type 'signon' and another 'PIN'
+ * where, for example, the PIN password policy only allowed 4 numbers to be used, whilst the signon
+ * policy allowed much-stronger, more complex passwords.
+ *
+ * If only one type of password is required, then simply ommit the password_type field from any requests
+ * and a value of 'DEFAULT' will be implied.
+ *
+ *
+ * POLCIIES
+ *
+ * Policies are used to validate new passwords meet the required format and strength rules (as well as
+ * holding rules about password totation periods, etc). The password format rules on the policy are
+ * only applied when a new password is specified, they are not checked when the password is validated
+ * (although rules about password expiry are checked at validation time).
+ *
+ * Making a new policy active is an async operation with eventual consistency. So may take a few
+ * momements to complete. This is done via Kafka notifications and this allows Vault to be scaled
+ * horizontally whilst ensuring all instances are using the same active polcies.
+ *
+ *
+ * HASHING
+ *
+ * The currently supported hashing algorthims are subsets of BCrypt, PBKDF2 and Argon. See the definitions
+ * below for details.
+ *
+ * Passwords are hashed and stored as a PHC string, so if changes are made to policies or the current
+ * hashing algorithm (for example anually incrementing the cost factor to compensate for more powerful
+ * hardware) - existing passwords are not invalidated. Instead, whenever a password is validated, a
+ * check is performed to see if it needs to rehashed with the latest algorithm, at which point it
+ * will be.
+ *
+ *
+ * IDs
+ *
+ * When a password is hashed it can either be given a password_id by the caller or allowed to generate
+ * and return a password_id to the caller. In the latter case, the caller must then store this password_id
+ * in some form of account management system. password_ids must be provided when the password needs 
+ * to be validated against a user-supplied value.
+ *
+ *
+ * ERRORS
+ *
+ * Unless stated otherwise, each API below will return a gRPC status of OK unless there has been an error
+ * either with the request format or the processing of the request.
+ *
+ * Whenever a non-OK status is returned then the body/details of the response will be an ascii string
+ * which is a unique detailled error code from the list at the top of src/utils/errors.rs.
+ */
 service Vault {
-    // User orientated (never expose to direct clients though!).
-    rpc HashPassword (HashRequest) returns (HashResponse) {} // Create or overwrite an existing password.
-    rpc ValidatePassword (ValidateRequest) returns (ValidateResponse) {}
-    rpc ChangePassword (ChangeRequest) returns (common.Empty) {} // when existing is known but must be rotated or is no-longer valid.
-    rpc StartResetPassword (StartResetRequest) returns (StartResetResponse) {} // 2-phase for when existing is forgotten.
+    /*
+     * This first group of endpoints are 'user-centric' features as opposed to 'maintenance-centric'.
+     * Whilst a client app should never call them directly, they would be invoked from user activity
+     * via some other service/orchestration endpoint.
+     */
+
+    /*
+     * This method will hash the plain text password and store the hash in Vault.
+     * If an existing password_id is specified, the new password takes it's place. If no password_id
+     * is specified, an id will be generated and returned in the response.
+     */
+    rpc HashPassword (HashRequest) returns (HashResponse) {}
+
+    /*
+     * This method will compare the plain text password with the stored hashed password and return
+     * success if they match. If the password has expired, a specific status will be returned to
+     * indicate the caller must call ChangePassword instead.
+     */
+    rpc ValidatePassword (ValidateRequest) returns (common.Empty) {}
+
+    /*
+     * This method allows the password to be changed if the existing correct password is also supplied
+     * with the request. Essentially a conveinence method which effectively does what both
+     * ValidatePassword and HashPassword does but at the same time for an existing password.
+     */
+    rpc ChangePassword (ChangeRequest) returns (common.Empty) {}
+
+    /*
+     * This method can be used when a user needs to reset their password but doesn't know the
+     * existing one. It is the first part of a 2-phase reset process. The password_id is supplied in
+     * the request and a temporary code is returned in the response.
+     *
+     * This temporary code SHOULD NEVER BE SENT DIRECTLY to the actor who initiated this
+     * call. Instead, it should be sent to a pre-registered e-mail address, or SMS message which has
+     * been registered against the account in some account management system.
+     *
+     * Once the code is in the users hands, it must be provided within a small time window back to
+     * the CompleteResetPassword call.
+     */
+    rpc StartResetPassword (StartResetRequest) returns (StartResetResponse) {}
+
+    /*
+     * This method is the second in the 2-phase password reset process. The new plaint text password
+     * is hashed and applied to the password_id specified, if the tempory code was generated for that
+     * password record.
+     */
     rpc CompleteResetPassword (CompleteResetRequest) returns (common.Empty) {}
 
-    // TODO: Document (once password type is introduced).
-    // Maintenance orientated.
-    // TODO: Doc that active policy has eventual consistency.
+
+    /*
+     * The remaining API methods which follow can be considered more maintenance-orientated
+     * features. The facilitate the import of new passwords, deletion of data and the creation
+     * of password policies.
+     */
+
+
+    /*
+     * This method can be used to define a new password policy. The caller also has the option to
+     * assign the policy to a specific password type, or just have it used for the DEFAULT password
+     * type.
+     *
+     * Simply creating a policy though does not make it 'active'. The rules defined on an in-active
+     * policy are not yet being enforced on new passwords until it is made active. This can be
+     * achieved in this request by setting the activate field or at a later stage by calling the
+     * MakeActive API.
+     *
+     * Each password type must have a single active policy. So making a policy active will implicitly
+     * deactivate the currently active policy for the given password type.
+     */
     rpc CreatePasswordPolicy (CreatePolicyRequest) returns (CreatePolicyResponse) {}
+
+    /*
+     * This method returns the active password policy for the DEFAULT password_type or the type
+     * specified in the request.
+     */
     rpc GetActivePolicy (GetActivePolicyRequest) returns (GetActivePolicyResponse) {}
-    // TODO: Doc that active policy has eventual consistency.
+
+    /*
+     * Makes the specified policy active for the given password_type (DEFAULT if no type is
+     * provided). See note above about eventual consistency.
+     */
     rpc MakeActive (MakeActiveRequest) returns (common.Empty) {}
+
+    /*
+     * Return all the policies defined on the system. As there shouldn't be many, all are returned
+     * at the same time.
+     */
     rpc GetPolicies (common.Empty) returns (GetPoliciesResponse) {}
+
+    /*
+     * This API can be used to ingest pre-existing passwords from another system. This is done
+     * using a bi-direction gRPC stream.
+     *
+     * The passwords being imported can be plain text (and are therefore hashed with the algorithm
+     * defined on the current active policy) - or they can be sent in a pre-existing PHC string
+     * as long as they are pre-hashed with a supported algorithm they will be stored in their
+     * pre-hashed PHC format.
+     */
     rpc ImportPasswords (stream ImportPasswordRequest) returns (stream ImportPasswordResponse) {}
+
+    /*
+     * This method will delete a password by it's password_id or multiple passwords matching
+     * the password_type specified. The number of deleted passwords is returned in the response.
+     */
     rpc DeletePassword (DeleteRequest) returns (DeleteResponse) {}
+
+    /*
+     * This API can be used to efficiently delete multiple passwords via a gRPC bi-directional
+     * stream.
+     */
     rpc DeletePasswords (stream DeleteRequest) returns (stream DeleteResponse) {}
+
     // TODO: GetPasswordTypes (configs)
     // TODO: DeletePasswordType - (config)
     // TODO: Count of passwords by type.
 }
 
 message CreatePolicyRequest {
-    NewPolicy policy = 1;
-    bool activate = 2;
+    NewPolicy policy = 1;              // The policy rules to create.
+    bool activate = 2;                 // Make this policy active for the specified password_type.
     optional string password_type = 3; // DEFAULT will be implied if not specified.
 }
 
-message Policy {
-    string policy_id = 1;            // Generated when created.
-    uint32 max_history_length = 2;   // How many passwords to store in history to prevent re-use of old ones.
-    uint32 max_age_days = 3;         // Passwords will expire after this period and must be changed.
-    uint32 min_length = 4;           // Minimum number of characters allowed.
-    uint32 max_length = 5;           // Maximum number of characters allowed.
-    uint32 max_character_repeat = 6; // Maximum number of times any given character can be used. For example, If 1, 'loopy' is prohibited but 'lopy' is allowed.
-    uint32 min_letters = 7;
-    uint32 max_letters = 8;
-    uint32 min_numbers = 9;
-    uint32 max_numbers = 10;
-    uint32 min_symbols = 11;
-    uint32 max_symbols = 12;
-    uint32 max_failures = 13;
-    uint32 lockout_seconds = 14;
-    bool mixed_case_required = 15;
-    uint32 reset_timeout_seconds = 16;
-    oneof algorithm {
-        ArgonPolicy argon_policy = 17;
-        BCryptPolicy bcrypt_policy = 18;
-        PBKDF2Policy pbkdf2_policy = 19;
-    }
-    repeated string prohibited_phrases = 20;
-    uint64 created_on = 21;
-}
-
+/*
+ * The definition provided when creating a new password policy.
+ */
 message NewPolicy {
     uint32 max_history_length = 1;   // How many passwords to store in history to prevent re-use of old ones.
-    uint32 max_age_days = 2;         // Passwords will expire after this period and must be changed.
+    uint32 max_age_days = 2;         // Passwords will expire after this period and must be changed when next validated.
     uint32 min_length = 3;           // Minimum number of characters allowed.
     uint32 max_length = 4;           // Maximum number of characters allowed.
     uint32 max_character_repeat = 5; // Maximum number of times any given character can be used. For example, If 1, 'loopy' is prohibited but 'lopy' is allowed.
-    uint32 min_letters = 6;
-    uint32 max_letters = 7;
-    uint32 min_numbers = 8;
-    uint32 max_numbers = 9;
-    uint32 min_symbols = 10;
-    uint32 max_symbols = 11;
-    uint32 max_failures = 12;
-    uint32 lockout_seconds = 13;
-    bool mixed_case_required = 14;
-    uint32 reset_timeout_seconds = 15;
-    oneof algorithm {
+    uint32 min_letters = 6;          // The minimum number of a-zA-Z characters allowed in the password.
+    uint32 max_letters = 7;          // The maximum number of a-zA-Z characters allowed in the password.
+    uint32 min_numbers = 8;          // The minimum number of 0-9 characters allowed in the password.
+    uint32 max_numbers = 9;          // The maximum number of 0-9 characters allowed in the password.
+    uint32 min_symbols = 10;         // The minimum number of none-alphanumeric (!, ", $, etc) characters allowed in the password.
+    uint32 max_symbols = 11;         // The maximum number of none-alphanumeric (!, ", $, etc) characters allowed in the password.
+    uint32 max_failures = 12;        // The maximum number of failed validation attempts before the password becomes locked.
+    uint32 lockout_seconds = 13;     // How many seconds the password is locked for before further validation attempts can be made.
+    bool mixed_case_required = 14;   // Whether the password must contain a mix of upper and lower case letters.
+    uint32 reset_timeout_seconds = 15; // How many seconds a temporary password reset code is valid for.
+    oneof algorithm {                  // The algorithm to use to hash passwords with.
         ArgonPolicy argon_policy = 16;
         BCryptPolicy bcrypt_policy = 17;
         PBKDF2Policy pbkdf2_policy = 18;
     }
-    repeated string prohibited_phrases = 19;
+    repeated string prohibited_phrases = 19; // A list of characters or words which cannot be used in a password (for example 'password', 'qwerty').
+}
+
+/*
+ * This definition is sed when returning an existing password policy.
+ */
+message Policy {
+    string policy_id = 1;            // Generated when created.
+    uint32 max_history_length = 2;   // How many passwords to store in history to prevent re-use of old ones.
+    uint32 max_age_days = 3;         // Passwords will expire after this period and must be changed when next validated.
+    uint32 min_length = 4;           // Minimum number of characters allowed.
+    uint32 max_length = 5;           // Maximum number of characters allowed.
+    uint32 max_character_repeat = 6; // Maximum number of times any given character can be used. For example, If 1, 'loopy' is prohibited but 'lopy' is allowed.
+    uint32 min_letters = 7;          // The minimum number of a-zA-Z characters allowed in the password.
+    uint32 max_letters = 8;          // The maximum number of a-zA-Z characters allowed in the password.
+    uint32 min_numbers = 9;          // The minimum number of 0-9 characters allowed in the password.
+    uint32 max_numbers = 10;         // The maximum number of 0-9 characters allowed in the password.
+    uint32 min_symbols = 11;         // The minimum number of none-alphanumeric (!, ", $, etc) characters allowed in the password.
+    uint32 max_symbols = 12;         // The maximum number of none-alphanumeric (!, ", $, etc) characters allowed in the password.
+    uint32 max_failures = 13;        // The maximum number of failed validation attempts before the password becomes locked.
+    uint32 lockout_seconds = 14;     // How many seconds the password is locked for before further validation attempts can be made.
+    bool mixed_case_required = 15;   // Whether the password must contain a mix of upper and lower case letters.
+    uint32 reset_timeout_seconds = 16; // How many seconds a temporary password reset code is valid for.
+    oneof algorithm {                  // The algorithm to use to hash passwords with.
+        ArgonPolicy argon_policy = 17;
+        BCryptPolicy bcrypt_policy = 18;
+        PBKDF2Policy pbkdf2_policy = 19;
+    }
+    repeated string prohibited_phrases = 20; // A list of characters or words which cannot be used in a password (for example 'password', 'qwerty').
+    uint64 created_on = 21; // The UNIX epoch timestamp when this policy was created.
 }
 
 // https://en.wikipedia.org/wiki/Argon2
@@ -116,7 +289,7 @@ message PBKDF2Policy {
 }
 
 message CreatePolicyResponse {
-    string policy_id = 1;
+    string policy_id = 1; // The generated id for the password policy.
 }
 
 message MakeActiveRequest {
@@ -129,12 +302,12 @@ message GetPoliciesResponse {
 }
 
 message GetActivePolicyRequest {
-    optional string password_type = 1;
+    optional string password_type = 1; // DEFAULT will be implied if not specified.
 }
 
 message GetActivePolicyResponse {
     Policy policy = 1;
-    uint64 activated_on = 2;
+    uint64 activated_on = 2; // The UNIX epoch timestamp when the policy was activated.
 }
 
 message ImportPasswordRequest {
@@ -159,16 +332,12 @@ message HashRequest {
 }
 
 message HashResponse {
-    string password_id = 1;
+    string password_id = 1; // The original password_id in the request or a generated one if there was none in the request.
 }
 
 message ValidateRequest {
     string password_id = 1;
     string plain_text_password = 2;
-}
-
-message ValidateResponse {
-    bool must_change = 1; // TODO: Consider dropping this and using an error status.
 }
 
 message ChangeRequest {
@@ -182,7 +351,7 @@ message StartResetRequest {
 }
 
 message StartResetResponse {
-    string reset_code = 1;
+    string reset_code = 1; // A temporary code needed for the CompleteResetRequest.
 }
 
 message CompleteResetRequest {

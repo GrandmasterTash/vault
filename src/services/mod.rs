@@ -60,7 +60,7 @@ impl Vault for Arc<ServiceContext> {
     }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
-    async fn validate_password(&self, request: Request<api::ValidateRequest>) -> Result<Response<api::ValidateResponse>, Status> {
+    async fn validate_password(&self, request: Request<api::ValidateRequest>) -> Result<Response<common::Empty>, Status> {
         validate_password::validate_password(self, request).await
     }
 

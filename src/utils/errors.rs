@@ -50,6 +50,7 @@ pub enum ErrorCode {
     PasswordNotFound                = 2101,
     TooManyFailedAttempts           = 2102,
     PasswordNotMatch                = 2103,
+    PasswordExpired                 = 2104,
     NoResetCode                     = 2200,
     NoResetTimestamp                = 2201,
     ResetWindowExpired              = 2202,
@@ -211,10 +212,12 @@ impl From<VaultError> for Status {
             PasswordTooShort              |
             PasswordUsedBefore            |
             PolicyMandatory               |
-            ResetWindowExpired            |
             TooManyLetters                |
             TooManyNumbers                |
             TooManySymbols => Code::InvalidArgument,
+
+            PasswordExpired    |
+            ResetWindowExpired => Code::DeadlineExceeded,
 
             PasswordNotFound |
             PasswordNotMatch |
