@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 
 use bson::Document;
-use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
+use chrono::{DateTime, Utc};
+use crate::model::config::Config;
 use mongodb::{Database, bson::doc};
-use crate::db::mongo;
-use crate::model::config::{prelude::*, Config};
+use crate::db::{prelude::*, mongo};
 use crate::model::policy::{ActivePolicy, Policy};
 use crate::utils::context::ServiceContext;
 use crate::utils::errors::{ErrorCode, VaultError};
 
 #[tracing::instrument(skip(db))]
 pub async fn insert(policy: Policy, db: &Database) -> Result<(), VaultError> {
-    let result = db.collection::<Policy>("Policies").insert_one(policy, None)
+    let result = db.collection::<Policy>(POLICIES).insert_one(policy, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -27,8 +27,8 @@ pub async fn insert(policy: Policy, db: &Database) -> Result<(), VaultError> {
 pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> {
 
     let result = db
-        .collection::<Policy>("Policies")
-        .find_one(doc!{ "policy_id": policy_id }, None)
+        .collection::<Policy>(POLICIES)
+        .find_one(doc!{ POLICY_ID: policy_id }, None)
         .await?;
 
     match result {
@@ -42,7 +42,7 @@ pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> 
 pub async fn load_all(db: &Database) -> Result<Vec<Policy>, VaultError> {
 
     let cursor = db
-        .collection::<Policy>("Policies")
+        .collection::<Policy>(POLICIES)
         .find(doc!{}, None)
         .await?;
 
@@ -63,7 +63,7 @@ pub async fn load_active(db: &Database)
     tracing::info!("Loading active policies...");
 
     // Load the configuration for all password_types.
-    let mut cursor = db.collection::<Config>("Config")
+    let mut cursor = db.collection::<Config>(CONFIG)
         .find(doc!{/* all */}, None)
         .await?;
 
@@ -91,7 +91,7 @@ pub async fn load_active(db: &Database)
 #[tracing::instrument(skip(ctx))]
 pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &ServiceContext) -> Result<DateTime<Utc>, VaultError> {
     let now = ctx.now();
-    let filter = doc! { "password_type": password_type };
+    let filter = doc! { PASSWORD_TYPE: password_type };
     let update = doc!{
         "$set": {
             PASSWORD_TYPE: password_type,
@@ -100,7 +100,7 @@ pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &Servi
         }
     };
 
-    ctx.db().collection::<Document>("Config")
+    ctx.db().collection::<Document>(CONFIG)
         .update_one(filter, update, mongo::upsert())
         .await
         .map_err(|e| VaultError::from(e))?;
@@ -110,8 +110,8 @@ pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &Servi
 
 #[tracing::instrument(skip(db))]
 pub async fn policy_exists(policy_id: &str, db: &Database) -> Result<bool, VaultError> {
-    let filter = doc!{ "policy_id": policy_id };
-    let count = db.collection::<Document>("Policies")
+    let filter = doc!{ POLICY_ID: policy_id };
+    let count = db.collection::<Document>(POLICIES)
         .count_documents(filter, None)
         .await
         .map_err(|e| VaultError::from(e))?;

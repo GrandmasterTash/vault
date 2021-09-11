@@ -54,9 +54,8 @@ package grpc.vault;
  *
  * Passwords are hashed and stored as a PHC string, so if changes are made to policies or the current
  * hashing algorithm (for example anually incrementing the cost factor to compensate for more powerful
- * hardware) - existing passwords are not invalidated. Instead, whenever a password is validated, a
- * check is performed to see if it needs to rehashed with the latest algorithm, at which point it
- * will be.
+ * hardware) - existing passwords are not invalidated. Existing passwords will naturally be upgraded
+ * to stronger or changed algorithms when they expire through the policies max_age_days property.
  *
  *
  * IDs
@@ -101,7 +100,8 @@ service Vault {
      * with the request. Essentially a conveinence method which effectively does what both
      * ValidatePassword and HashPassword does but at the same time for an existing password.
      */
-    rpc ChangePassword (ChangeRequest) returns (common.Empty) {}
+    // Removed - as the caller can use validate and hash to acheive this! 
+    // rpc ChangePassword (ChangeRequest) returns (common.Empty) {}
 
     /*
      * This method can be used when a user needs to reset their password but doesn't know the
@@ -190,7 +190,6 @@ service Vault {
 
     // TODO: GetPasswordTypes (configs)
     // TODO: DeletePasswordType - (config)
-    // TODO: Count of passwords by type.
 }
 
 message CreatePolicyRequest {
@@ -252,7 +251,7 @@ message Policy {
         PBKDF2Policy pbkdf2_policy = 19;
     }
     repeated string prohibited_phrases = 20; // A list of characters or words which cannot be used in a password (for example 'password', 'qwerty').
-    uint64 created_on = 21; // The UNIX epoch timestamp when this policy was created.
+    uint64 created_on = 21; // The UNIX epoch timestamp (with milliseconds) when this policy was created.
 }
 
 // https://en.wikipedia.org/wiki/Argon2
@@ -307,7 +306,7 @@ message GetActivePolicyRequest {
 
 message GetActivePolicyResponse {
     Policy policy = 1;
-    uint64 activated_on = 2; // The UNIX epoch timestamp when the policy was activated.
+    uint64 activated_on = 2; // The UNIX epoch timestamp (with milliseconds) when the policy was activated.
 }
 
 message ImportPasswordRequest {
@@ -340,11 +339,11 @@ message ValidateRequest {
     string plain_text_password = 2;
 }
 
-message ChangeRequest {
-    string plain_text_password = 1;
-    string new_plain_text_password = 2;
-    optional string password_id = 3;
-}
+// message ChangeRequest {
+//     string plain_text_password = 1;
+//     string new_plain_text_password = 2;
+//     string password_id = 3;
+// }
 
 message StartResetRequest {
     string password_id = 1;

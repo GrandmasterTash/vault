@@ -1,6 +1,6 @@
 use mongodb::Database;
 use bson::{Document, doc};
-use crate::{db::mongo, model::password::Password, utils::context::ServiceContext, utils::errors::{ErrorCode, VaultError}};
+use crate::{db::{prelude::*, mongo}, model::password::Password, utils::context::ServiceContext, utils::errors::{ErrorCode, VaultError}};
 
 
 ///
@@ -9,9 +9,9 @@ use crate::{db::mongo, model::password::Password, utils::context::ServiceContext
 #[tracing::instrument(skip(db))]
 pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultError> {
 
-    let filter = doc!{ "password_id": password_id };
+    let filter = doc!{ PASSWORD_ID: password_id };
 
-    match db.collection::<Password>("Passwords").find_one(filter, None)
+    match db.collection::<Password>(PASSWORDS).find_one(filter, None)
         .await
         .map_err(|e| VaultError::from(e))? {
 
@@ -27,9 +27,9 @@ pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultErr
 #[tracing::instrument(skip(db))]
 pub async fn load_if_present(password_id: &str, db: &Database) -> Result<Option<Password>, VaultError> {
 
-    let filter = doc!{ "password_id": password_id };
+    let filter = doc!{ PASSWORD_ID: password_id };
 
-    Ok(db.collection::<Password>("Passwords").find_one(filter, None)
+    Ok(db.collection::<Password>(PASSWORDS).find_one(filter, None)
         .await
         .map_err(|e| VaultError::from(e))?)
 }
@@ -43,32 +43,32 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
     -> Result<(), VaultError> {
 
     let filter = doc! {
-        "password_id": password_id,
+        PASSWORD_ID: password_id,
     };
 
     // Note: The $push below keeps the last x phcs in the history array.
     let update = doc!{
         "$unset": {
-            "failure_count": "",
-            "first_failure": "" ,
-            "reset_code": "",
-            "reset_started_at": ""
+            FAILURE_COUNT: "",
+            FIRST_FAILURE: "" ,
+            RESET_CODE: "",
+            RESET_STARTED_AT: ""
         },
         "$set": {
-            "password_id": password_id,
-            "password_type": password_type,
-            "phc": phc,
-            "changed_on": bson::DateTime::from_chrono(ctx.now()),
+            PASSWORD_ID: password_id,
+            PASSWORD_TYPE: password_type,
+            PHC: phc,
+            CHANGED_ON: bson::DateTime::from_chrono(ctx.now()),
         },
         "$push": {
-            "history": {
+            HISTORY: {
                 "$each": [ phc ],
                 "$slice": -(max_history as i32)
             }
         }
     };
 
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, mongo::upsert())
+    ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, mongo::upsert())
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -79,10 +79,10 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
 pub async fn delete(password_id: &str, db: &Database) -> Result<u64, VaultError> {
 
     let filter = doc! {
-        "password_id": password_id,
+        PASSWORD_ID: password_id,
     };
 
-    let result = db.collection::<Document>("Passwords").delete_one(filter, None)
+    let result = db.collection::<Document>(PASSWORDS).delete_one(filter, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -93,10 +93,10 @@ pub async fn delete(password_id: &str, db: &Database) -> Result<u64, VaultError>
 pub async fn delete_by_type(password_type: &str, db: &Database) -> Result<u64, VaultError> {
 
     let filter = doc! {
-        "password_type": password_type,
+        PASSWORD_TYPE: password_type,
     };
 
-    let result = db.collection::<Document>("Passwords").delete_many(filter, None)
+    let result = db.collection::<Document>(PASSWORDS).delete_many(filter, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -108,17 +108,17 @@ pub async fn store_reset_code(password_id: &str, reset_code: &str, ctx: &Service
     -> Result<(), VaultError> {
 
     let filter = doc! {
-        "password_id": password_id,
+        PASSWORD_ID: password_id,
     };
 
     let update = doc!{
         "$set": {
-            "reset_code": reset_code,
-            "reset_started_at": bson::DateTime::from_chrono(ctx.now()),
+            RESET_CODE: reset_code,
+            RESET_STARTED_AT: bson::DateTime::from_chrono(ctx.now()),
         }
     };
 
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
+    ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -132,18 +132,18 @@ pub async fn store_reset_code(password_id: &str, reset_code: &str, ctx: &Service
 pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password)
     -> Result<(), VaultError> {
 
-    let filter = doc!{ "password_id": &password.password_id };
+    let filter = doc!{ PASSWORD_ID: &password.password_id };
 
     // Update the failure count and potentially the first_failure timestamp.
     let update = match password.first_failure {
-        Some(_) => doc!("$inc": { "failure_count": 1 }),
+        Some(_) => doc!("$inc": { FAILURE_COUNT: 1 }),
         None => doc!{
-            "$inc": { "failure_count": 1 },
-            "$set": { "first_failure": bson::DateTime::from_chrono(ctx.now()) }
+            "$inc": { FAILURE_COUNT: 1 },
+            "$set": { FIRST_FAILURE: bson::DateTime::from_chrono(ctx.now()) }
         },
     };
 
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
+    ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 
@@ -156,22 +156,22 @@ pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password)
 #[tracing::instrument(skip(ctx, password), fields(password_id=?password.password_id))]
 pub async fn record_success(ctx: &ServiceContext, password: &Password) -> Result<(), VaultError> {
 
-    let filter = doc!{ "password_id": &password.password_id };
+    let filter = doc!{ PASSWORD_ID: &password.password_id };
 
     // Update the failure count and potentially the first_failure timestamp.
     let update = doc!{
             "$unset": {
-                "failure_count": "",
-                "first_failure": "" ,
-                "reset_code": "",
-                "reset_started_at": ""
+                FAILURE_COUNT: "",
+                FIRST_FAILURE: "" ,
+                RESET_CODE: "",
+                RESET_STARTED_AT: ""
             },
             "$set": {
-                "last_success": bson::DateTime::from_chrono(ctx.now())
+                LAST_SUCCESS: bson::DateTime::from_chrono(ctx.now())
             }
     };
 
-    ctx.db().collection::<Document>("Passwords").update_one(filter, update, None)
+    ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, None)
         .await
         .map_err(|e| VaultError::from(e))?;
 

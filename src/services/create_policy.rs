@@ -1,9 +1,11 @@
-use crate::{db, model::config::prelude::DEFAULT};
+use crate::utils;
 use std::ops::Range;
 use serde_json::json;
 use super::ServiceContext;
+use crate::{db, db::prelude::*};
 use crate::model::policy::Policy;
 use crate::services::make_active;
+use crate::utils::kafka::prelude::*;
 use crate::utils::errors::ErrorCode;
 use tonic::{Request, Response, Status};
 use crate::{utils::errors::VaultError, grpc::api};
@@ -29,7 +31,7 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
     validate_request(&request.policy)?;
 
     // Generated field values.
-    let policy_id = db::mongo::generate_id();
+    let policy_id = utils::generate_id();
     let now = ctx.now();
 
     // Create the policy in the db.
@@ -39,7 +41,7 @@ pub async fn create_password_policy(ctx: &ServiceContext, request: Request<api::
 
     db::policy::insert(policy.clone(), ctx.db()).await?;
 
-    ctx.send("password.policy.created", json!(policy)).await?;
+    ctx.send(TOPIC_POLICY_CREATED, json!(policy)).await?;
 
     if request.activate {
         make_active::make_active_by_id(

@@ -2,7 +2,7 @@ use serde_json::json;
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, grpc::common, model::{algorithm, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
+use crate::{db, grpc::api, grpc::common, model::{algorithm, password::Password, policy::Policy}, utils::{errors::{ErrorCode, VaultError}, kafka::prelude::*}};
 
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
@@ -43,7 +43,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
             tracing::warn!("Password id {} has exceeded the failure threshold", request.password_id);
 
             ctx.send(
-                "password.failure.exceeded",
+                TOPIC_FAILURE_EXCEEDED,
                 json!({ "password_id": request.password_id.clone() })).await?;
         }
 
@@ -54,9 +54,6 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     if expired(ctx, &password, &policy) {
         return Err(Status::from(ErrorCode::PasswordExpired.with_msg("The password was accepted but has expired and must be changed")))
     }
-
-    // TODO: When validating, compare PHC values with latest policy to see if password needs re-hashing
-    // with the latest algorithm.
 
     // Clear any failure details on the password and stamp the last successful use.
     db::password::record_success(ctx, &password).await?;

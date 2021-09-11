@@ -1,11 +1,11 @@
 use std::fs;
-use uuid::Uuid;
 use serde::Serialize;
 use tracing::{debug, info};
 use mongodb::error::ErrorKind;
 use crate::model::config::Config;
 use crate::model::policy::Policy;
 use crate::utils::errors::ErrorCode;
+use crate::db::prelude::*;
 use crate::utils::errors::VaultError;
 use crate::utils::config::Configuration;
 use mongodb::{Client, Database, bson::{self, Document, doc}, options::{ClientOptions, UpdateOptions}};
@@ -25,10 +25,10 @@ async fn create_init_indexes(db: &Database) -> Result<(), VaultError> {
     // https://docs.mongodb.com/manual/reference/command/createIndexes/#createindexes
 
     db.run_command(doc! { "createIndexes": "Passwords", "indexes": [
-        { "key": { "password_id": 1 }, "name": "idx_password_id", "unique": true },
-        { "key": { "password_type": 1 }, "name": "idx_password_type", "unique": false }] }, None).await?;
-    db.run_command(doc! { "createIndexes": "Policies", "indexes": [{ "key": { "policy_id": 1 }, "name": "idx_policy_id", "unique": true }] }, None).await?;
-    db.run_command(doc! { "createIndexes": "Config",   "indexes": [{ "key": { "password_type": 1 }, "name": "idx_password_type", "unique": true }] }, None).await?;
+        { "key": { PASSWORD_ID: 1 }, "name": "idx_password_id", "unique": true },
+        { "key": { PASSWORD_TYPE: 1 }, "name": "idx_password_type", "unique": false }] }, None).await?;
+    db.run_command(doc! { "createIndexes": POLICIES, "indexes": [{ "key": { POLICY_ID: 1 }, "name": "idx_policy_id", "unique": true }] }, None).await?;
+    db.run_command(doc! { "createIndexes": CONFIG,   "indexes": [{ "key": { PASSWORD_TYPE: 1 }, "name": "idx_password_type", "unique": true }] }, None).await?;
 
     Ok(())
 }
@@ -117,11 +117,6 @@ pub async fn get_mongo_db(app_name: &str, config: &Configuration) -> Result<Data
 
 pub async fn ping(db: &Database) -> Result<Document, VaultError> {
     Ok(db.run_command(doc! { "ping": 1 }, None).await?)
-}
-
-// TODO: Move to a utils module
-pub fn generate_id() -> String {
-    Uuid::new_v4().to_hyphenated().to_string()
 }
 
 pub trait Persistable<T: Serialize> {

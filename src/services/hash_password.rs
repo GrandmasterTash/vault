@@ -1,5 +1,5 @@
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, model::{config::prelude::DEFAULT, policy::Policy}, utils::{context::ServiceContext, errors::VaultError}};
+use crate::{db, db::prelude::*, grpc::api, model::policy::Policy, utils::{self, context::ServiceContext, errors::VaultError}};
 
 ///
 /// Validate the password against the current password policy.
@@ -19,7 +19,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
         Some(password_id) => {
             (password_id.clone(), db::password::load_if_present(password_id, ctx.db()).await?)
         },
-        None => (db::mongo::generate_id(), None),
+        None => (utils::generate_id(), None),
     };
 
     // Hash new password with a snapshot of the current policy. This is a highly CPU-bound activity so

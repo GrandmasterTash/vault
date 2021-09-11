@@ -1,11 +1,12 @@
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use super::prelude::*;
 use tracing::instrument;
 use crate::{APP_NAME, db};
+use crate::utils::generate_id;
 use rdkafka::message::Headers;
 use rdkafka::message::Message;
 use rdkafka::error::KafkaResult;
-use crate::db::mongo::generate_id;
 use crate::utils::context::ServiceContext;
 use crate::model::policy::PolicyActivated;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -13,7 +14,7 @@ use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
 
 /// All the topics this service needs to monitor.
-pub const CONSUMER_TOPICS: [&str;1] = ["password.policy.activated"];
+pub const CONSUMER_TOPICS: [&str;1] = [TOPIC_POLICY_ACTIVATED];
 
 // Because our app produces and consumes to/from the same topic, we need a signal during start-up
 // that suspends the server start-up, until the consumergroup has been balanced and we know that
@@ -100,7 +101,7 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
                 consumer.commit_message(&m, CommitMode::Async).unwrap();
 
                 // TODO: Ensure v1 version
-                if m.topic() == "password.policy.activated" {
+                if m.topic() == TOPIC_POLICY_ACTIVATED {
                     // Could check version header to route to alternated handlers.
                     handle_policy_activated(m.topic(), payload, ctx.clone()).await;
                 }

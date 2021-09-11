@@ -1,10 +1,11 @@
 use chrono::Utc;
 use chrono::DateTime;
 use crate::grpc::api;
+use crate::db::prelude::*;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use crate::utils::errors::{ErrorCode, VaultError};
-use crate::model::{config::prelude::*, algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
+use crate::model::{algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
 
 use super::algorithm;
 use super::algorithm::argon;

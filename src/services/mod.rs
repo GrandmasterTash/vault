@@ -10,12 +10,12 @@ mod validate_password;
 mod get_active_policy;
 
 use futures::Stream;
-use tokio_stream::wrappers::ReceiverStream;
 use tracing::instrument;
 use std::{pin::Pin, sync::Arc};
 use crate::grpc::{api, admin, common};
 use crate::grpc::api::vault_server::Vault;
 use crate::utils::context::ServiceContext;
+use tokio_stream::wrappers::ReceiverStream;
 use crate::grpc::admin::admin_server::Admin;
 use tonic::{Request, Response, Status, Streaming};
 
@@ -74,10 +74,10 @@ impl Vault for Arc<ServiceContext> {
         complete_reset::complete_reset_password(self, request).await
     }
 
-    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
-    async fn change_password(&self, request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
-        todo!()
-    }
+    // #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    // async fn change_password(&self, request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
+    //     todo!()
+    // }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_password(&self, request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {

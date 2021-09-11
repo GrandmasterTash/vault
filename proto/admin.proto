@@ -1,5 +1,4 @@
 syntax = "proto3";
-// import "google/protobuf/empty.proto"; // Could use google.protobuf.Empty.
 import "common.proto";
 package grpc.admin;
 
@@ -7,8 +6,18 @@ service Admin {
     // TODO: Replace this with https://github.com/hyperium/tonic/tree/master/examples/src/health
     rpc Ping (common.Empty) returns (common.Empty) {}
 
-    // Time provider for tests.
+    /*
+     * This API is internal and intended only to be used during integration tests.
+     *
+     * It alters the behaviour of ServiceContext.now() to return a fixed value.
+     */
     rpc SetTime (NewTime) returns (common.Empty) {}
+
+    /*
+     * This API is internal and intended only to be used during integration tests.
+     *
+     * It removes any fixed time applied by the SetTime API.
+     */
     rpc ResetTime (common.Empty) returns (common.Empty) {}
 }
 

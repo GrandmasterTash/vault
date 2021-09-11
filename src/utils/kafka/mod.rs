@@ -5,6 +5,12 @@ use std::time::Duration;
 use super::config::Configuration;
 use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicReplication}, client::DefaultClientContext};
 
+pub mod prelude {
+    pub const TOPIC_FAILURE_EXCEEDED: &str = "password.failure.exceeded";
+    pub const TOPIC_POLICY_CREATED:   &str = "password.policy.created";
+    pub const TOPIC_POLICY_ACTIVATED: &str = "password.policy.activated";
+}
+
 ///
 /// Pre-create any topics we want to subscribe to - seems to be an issue in the driver and auto-create doesn't work.
 ///

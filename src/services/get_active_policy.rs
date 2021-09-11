@@ -1,6 +1,6 @@
 use super::ServiceContext;
 use tonic::{Request, Response, Status};
-use crate::{grpc::api, model::config::prelude::DEFAULT, utils::errors::ErrorCode};
+use crate::{grpc::api, db::prelude::*, utils::errors::ErrorCode};
 
 
 pub async fn get_active_policy(ctx: &ServiceContext, request: Request<api::GetActivePolicyRequest>)

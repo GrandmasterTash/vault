@@ -1,17 +1,7 @@
 use chrono::Utc;
+use crate::db::prelude::*;
 use serde::{Deserialize, Serialize};
-use self::prelude::*;
 
-// This ensures only one persisted document exists.
-pub mod prelude {
-    // TODO: move default to model.mod
-    pub const DEFAULT:   &str = "DEFAULT";
-
-    // TODO: Move these to db.mod
-    pub const PASSWORD_TYPE:    &str = "password_type";
-    pub const ACTIVATED_ON:     &str = "activated_on";
-    pub const ACTIVE_POLICY_ID: &str = "active_policy_id";
-}
 
 ///
 /// Represent the persisted configuration in MongoDB - not to be confused with

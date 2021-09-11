@@ -1,8 +1,8 @@
 use serde_json::json;
 use super::ServiceContext;
+use crate::utils::{errors::ErrorCode, kafka::prelude::*};
 use tonic::{Request, Response, Status};
-use crate::{model::config::prelude::DEFAULT, utils::errors::ErrorCode};
-use crate::{db, grpc::{api, common}, model::policy::PolicyActivated, utils::errors::VaultError};
+use crate::{db, db::prelude::*, grpc::{api, common}, model::policy::PolicyActivated, utils::errors::VaultError};
 
 pub async fn make_active(ctx: &ServiceContext, request: Request<api::MakeActiveRequest>)
     -> Result<Response<common::Empty>, Status> {
@@ -27,9 +27,9 @@ pub async fn make_active(ctx: &ServiceContext, request: Request<api::MakeActiveR
 pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &ServiceContext) -> Result<(), VaultError> {
     let when = db::policy::make_active_by_id(policy_id, password_type, ctx).await?;
 
-    tracing::info!("Sending Kafka notification to password.policy.activated {}", policy_id);
+    tracing::info!("Sending Kafka notification to {} {}", TOPIC_POLICY_ACTIVATED, policy_id);
 
-    ctx.send("password.policy.activated",
+    ctx.send(TOPIC_POLICY_ACTIVATED,
         json!(PolicyActivated {
             policy_id: policy_id.to_string(),
             password_type: password_type.to_string(),
