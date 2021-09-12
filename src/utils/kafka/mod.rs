@@ -6,9 +6,10 @@ use super::config::Configuration;
 use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicReplication}, client::DefaultClientContext};
 
 pub mod prelude {
-    pub const TOPIC_FAILURE_EXCEEDED: &str = "password.failure.exceeded";
-    pub const TOPIC_POLICY_CREATED:   &str = "password.policy.created";
-    pub const TOPIC_POLICY_ACTIVATED: &str = "password.policy.activated";
+    pub const TOPIC_FAILURE_EXCEEDED:      &str = "password.failure.exceeded";
+    pub const TOPIC_POLICY_CREATED:        &str = "password.policy.created";
+    pub const TOPIC_POLICY_ACTIVATED:      &str = "password.policy.activated";
+    pub const TOPIC_PASSWORD_TYPE_DELETED: &str = "password.type.deleted";
 }
 
 ///

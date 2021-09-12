@@ -9,6 +9,8 @@ mod delete_password;
 mod import_passwords;
 mod validate_password;
 mod get_active_policy;
+mod get_password_types;
+mod delete_password_type;
 
 use std::sync::Arc;
 use tracing::instrument;
@@ -74,11 +76,6 @@ impl Vault for Arc<ServiceContext> {
         complete_reset::complete_reset_password(self, request).await
     }
 
-    // #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
-    // async fn change_password(&self, request: Request<api::ChangeRequest>) -> Result<Response<common::Empty>, Status> {
-    //     todo!()
-    // }
-
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_password(&self, request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {
         delete_password::delete_password(self, request).await
@@ -87,6 +84,16 @@ impl Vault for Arc<ServiceContext> {
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_passwords(&self, request: Request<Streaming<api::DeleteRequest>>) -> Result<Response<Self::DeletePasswordsStream>, Status>  {
         delete_password::delete_passwords(self, request).await
+    }
+
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn get_password_types(&self, request: Request<common::Empty>) -> Result<Response<api::GetPasswordTypesResponse>, Status> {
+        get_password_types::get_password_types(self, request).await
+    }
+
+    #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
+    async fn delete_password_type(&self, request: Request<api::DeletePasswordTypeRequest>) -> Result<Response<api::DeleteResponse>, Status> {
+        delete_password_type::delete_password_type(self, request).await
     }
 }
 

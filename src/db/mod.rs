@@ -2,8 +2,6 @@ pub mod mongo;
 pub mod policy;
 pub mod password;
 
-// TODO: Prelude with all collection names.
-
 // This ensures only one persisted document exists.
 pub mod prelude {
     // Default ID's / password_types.

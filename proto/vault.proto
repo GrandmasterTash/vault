@@ -182,8 +182,16 @@ service Vault {
      */
     rpc DeletePasswords (stream DeleteRequest) returns (stream DeleteResponse) {}
 
-    // TODO: GetPasswordTypes (configs)
-    // TODO: DeletePasswordType - (config)
+    /*
+     * This API can be used to return any password types defined on the system.
+     */
+    rpc GetPasswordTypes (common.Empty) returns (GetPasswordTypesResponse) {}
+
+    /*
+     * This API can be used to delete a password type from the system. Any passwords with this
+     * type are also deleted - the response contains the number of PASSWORDS deleted.
+     */
+    rpc DeletePasswordType (DeletePasswordTypeRequest) returns (DeleteResponse) {}
 }
 
 message CreatePolicyRequest {
@@ -356,4 +364,12 @@ message DeleteRequest {
 
 message DeleteResponse {
     uint64 deleted_count = 1;
+}
+
+message GetPasswordTypesResponse {
+    repeated string password_types = 1;
+}
+
+message DeletePasswordTypeRequest {
+    string password_type = 1;
 }

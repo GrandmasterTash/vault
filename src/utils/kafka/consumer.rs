@@ -8,13 +8,13 @@ use rdkafka::message::Headers;
 use rdkafka::message::Message;
 use rdkafka::error::KafkaResult;
 use crate::utils::context::ServiceContext;
-use crate::model::policy::PolicyActivated;
+use crate::model::policy::{PasswordTypeDeleted, PolicyActivated};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
 
 /// All the topics this service needs to monitor.
-pub const CONSUMER_TOPICS: [&str;1] = [TOPIC_POLICY_ACTIVATED];
+pub const CONSUMER_TOPICS: [&str;2] = [TOPIC_POLICY_ACTIVATED, TOPIC_PASSWORD_TYPE_DELETED];
 
 // Because our app produces and consumes to/from the same topic, we need a signal during start-up
 // that suspends the server start-up, until the consumergroup has been balanced and we know that
@@ -98,13 +98,17 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
                     }
                 }
 
-                consumer.commit_message(&m, CommitMode::Async).unwrap();
-
                 // TODO: Ensure v1 version
                 if m.topic() == TOPIC_POLICY_ACTIVATED {
                     // Could check version header to route to alternated handlers.
-                    handle_policy_activated(m.topic(), payload, ctx.clone()).await;
+                    handle_policy_activated(payload, ctx.clone()).await;
                 }
+
+                if m.topic() == TOPIC_PASSWORD_TYPE_DELETED {
+                    handle_password_type_deleted(payload, ctx.clone()).await;
+                }
+
+                consumer.commit_message(&m, CommitMode::Async).unwrap();
             }
         };
     }
@@ -114,9 +118,8 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
 /// If a new password policy is activated (either by us or another instance of valut) then update
 /// our 'global' active policy so API requests are checked against it.
 ///
-// async fn handle_policy_activated(topic: &str, payload: &str, db: Database, active_policy: Arc<RwLock<PolicyDB>>) {
 #[instrument(skip(ctx))]
-async fn handle_policy_activated(topic: &str, payload: &str, ctx: Arc<ServiceContext>) {
+async fn handle_policy_activated(payload: &str, ctx: Arc<ServiceContext>) {
 
     match serde_json::from_str::<PolicyActivated>(payload) {
         Ok(payload) => {
@@ -128,6 +131,25 @@ async fn handle_policy_activated(topic: &str, payload: &str, ctx: Arc<ServiceCon
 
             tracing::info!("Password policy {} activated for password type {}", payload.policy_id, payload.password_type);
         },
-        Err(err) => tracing::warn!("Unable to process message on topic: {}: {}: {}", topic, payload, err),
+        Err(err) => tracing::warn!("Unable to process message on topic: {}: {}: {}", TOPIC_POLICY_ACTIVATED, payload, err),
+    };
+}
+
+
+///
+/// If a password type has been deleted from the system, remove any active policy in our cache for it.
+///
+#[instrument(skip(ctx))]
+async fn handle_password_type_deleted(payload: &str, ctx: Arc<ServiceContext>) {
+
+    match serde_json::from_str::<PasswordTypeDeleted>(payload) {
+        Ok(event) => {
+            if ctx.remove_policy_by_type(&event.password_type) {
+                tracing::info!("Removed active policy for password type {}", &event.password_type);
+            } else {
+                tracing::warn!("No active policy in cache for removed password type {}", &event.password_type);
+            }
+        },
+        Err(err) => tracing::warn!("Unable to process message on topic: {}: {}: {}", TOPIC_PASSWORD_TYPE_DELETED, payload, err),
     };
 }

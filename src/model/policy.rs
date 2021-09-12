@@ -31,6 +31,14 @@ pub struct PolicyActivated {
     pub activated_on: DateTime<Utc>,
 }
 
+///
+/// A notification sent between instances of Vault when a password type is removed.
+///
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PasswordTypeDeleted {
+    pub password_type: String
+}
+
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Policy {

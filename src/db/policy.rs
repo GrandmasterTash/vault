@@ -117,3 +117,13 @@ pub async fn policy_exists(policy_id: &str, db: &Database) -> Result<bool, Vault
         .map_err(|e| VaultError::from(e))?;
     Ok(count == 1)
 }
+
+#[tracing::instrument(skip(db))]
+pub async fn delete_password_type(password_type: &str, db: &Database) -> Result<bool, VaultError> {
+    let filter = doc!{ PASSWORD_TYPE: password_type };
+    let result = db.collection::<Document>(CONFIG)
+        .delete_one(filter, None)
+        .await
+        .map_err(|e| VaultError::from(e))?;
+    Ok(result.deleted_count > 0)
+}

@@ -2,6 +2,7 @@ syntax = "proto3";
 import "common.proto";
 package grpc.admin;
 
+// TODO: Rename internal.
 service Admin {
     // TODO: Replace this with https://github.com/hyperium/tonic/tree/master/examples/src/health
     rpc Ping (common.Empty) returns (common.Empty) {}

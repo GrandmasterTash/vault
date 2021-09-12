@@ -55,7 +55,9 @@ pub enum ErrorCode {
     NoResetTimestamp                = 2201,
     ResetWindowExpired              = 2202,
     DeleteByNotSpecified            = 2300,
-    PasswordNotSpecified            = 2301
+    PasswordNotSpecified            = 2301,
+    PasswordTypeNotFound            = 2400,
+    CannotRemoveDefault             = 2401
 }
 
 impl ErrorCode {
@@ -188,9 +190,11 @@ impl From<VaultError> for Status {
             UnableToReadCredentials |
             UnknownAlgorithmVariant => Code::Internal,
 
-            PolicyNotFound => Code::NotFound,
+            PasswordTypeNotFound |
+            PolicyNotFound       => Code::NotFound,
 
             AlgorthimMandatory            |
+            CannotRemoveDefault           |
             CharacterRepeatedTooManyTimes |
             DeleteByNotSpecified          |
             InvalidArgonParalellism       |

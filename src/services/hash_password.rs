@@ -34,6 +34,8 @@ pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: 
         None => (utils::generate_id(), None),
     };
 
+    // TODO: Check the password_type on the request matches that on the password if present.
+
     // Hash new password with a snapshot of the current policy. This is a highly CPU-bound activity so
     // perform it in the blocking thread pool not on the main event loop.
     let plain_text_password = plain_text_password.to_string();

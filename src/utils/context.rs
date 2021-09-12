@@ -99,6 +99,15 @@ impl ServiceContext {
         lock.insert(password_type.to_string(), ActivePolicy { policy, activated_on });
     }
 
+    ///
+    /// Remove any cached active policy for the password type. Returns true if there was an
+    /// entry in the cache for the type otherwise false.
+    ///
+    pub fn remove_policy_by_type(&self, password_type: &str) -> bool {
+        let mut lock = self.active_policies.write();
+        lock.remove_entry(password_type).is_some()
+    }
+
     pub fn db(&self) -> &Database {
         &self.db
     }
