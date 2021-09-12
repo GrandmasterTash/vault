@@ -11,11 +11,23 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 
     let request = request.into_inner();
     let password_type = request.password_type.as_deref().unwrap_or(DEFAULT);
+    let password_id = hash_and_store_password(
+        ctx,
+        &request.plain_text_password,
+        &password_type,
+        request.password_id)
+        .await?;
+
+    Ok(Response::new(api::HashResponse { password_id }))
+}
+
+pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: &str, password_type: &str, password_id: Option<String>)
+    -> Result<String, VaultError> {
 
     // Check password against current policy.
-    let policy = validate_password_get_policy(ctx, &request, &password_type).await?;
+    let policy = validate_password_get_policy(ctx, plain_text_password, password_type).await?;
 
-    let (password_id, password) = match &request.password_id {
+    let (password_id, password) = match &password_id {
         Some(password_id) => {
             (password_id.clone(), db::password::load_if_present(password_id, ctx.db()).await?)
         },
@@ -24,7 +36,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 
     // Hash new password with a snapshot of the current policy. This is a highly CPU-bound activity so
     // perform it in the blocking thread pool not on the main event loop.
-    let plain_text_password = request.plain_text_password.clone();
+    let plain_text_password = plain_text_password.to_string();
     let policy_for_hashing = policy.clone();
     let phc = tokio::task::spawn_blocking(move || {
             // If this is an existing password, to check it's not been used before we need to load
@@ -40,7 +52,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 
     let _result = db::password::upsert(&ctx, &password_id, &password_type, &phc, policy.max_history_length).await?;
 
-    Ok(Response::new(api::HashResponse { password_id }))
+    Ok(password_id)
 }
 
 
@@ -49,10 +61,10 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
 ///
 /// If it's good, return the active policy to the caller.
 ///
-async fn validate_password_get_policy(ctx: &ServiceContext, request: &api::HashRequest, password_type: &str)
+async fn validate_password_get_policy(ctx: &ServiceContext, plain_text_password: &str, password_type: &str)
     -> Result<Policy, VaultError> {
 
     let policy = ctx.active_policy_for_type(password_type)?;
-    policy.validate_pattern(&request.plain_text_password)?;
+    policy.validate_pattern(plain_text_password)?;
     Ok(policy)
 }

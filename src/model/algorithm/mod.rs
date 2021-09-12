@@ -40,6 +40,19 @@ pub fn rehash(plain_text_password: &str, phc: &str) -> Result<String, VaultError
 }
 
 ///
+/// Returns true if the PHC contains a supported algorithm.
+///
+pub fn is_supported(phc: &str) -> bool {
+    match select(phc) {
+        Ok(_)    => true,
+        Err(err) => {
+            tracing::trace!("PHC not supported: {:?}", err);
+            false
+        },
+    }
+}
+
+///
 /// Parse the first part of the phc string and return the algorithm.
 ///
 fn select(phc: &str) -> Result<Algorithm, VaultError> {

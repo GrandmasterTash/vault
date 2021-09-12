@@ -6,12 +6,12 @@ mod create_policy;
 mod hash_password;
 mod complete_reset;
 mod delete_password;
+mod import_passwords;
 mod validate_password;
 mod get_active_policy;
 
-use futures::Stream;
+use std::sync::Arc;
 use tracing::instrument;
-use std::{pin::Pin, sync::Arc};
 use crate::grpc::{api, admin, common};
 use crate::grpc::api::vault_server::Vault;
 use crate::utils::context::ServiceContext;
@@ -26,7 +26,7 @@ use tonic::{Request, Response, Status, Streaming};
 ///
 #[tonic::async_trait]
 impl Vault for Arc<ServiceContext> {
-    type ImportPasswordsStream = Pin<Box<dyn Stream<Item = Result<api::ImportPasswordResponse, Status>> + Send + Sync>>;
+    type ImportPasswordsStream = ReceiverStream<Result<api::ImportPasswordResponse, Status>>;
     type DeletePasswordsStream = ReceiverStream<Result<api::DeleteResponse, Status>>;
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
@@ -51,7 +51,7 @@ impl Vault for Arc<ServiceContext> {
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]
     async fn import_passwords(&self, request: Request<Streaming<api::ImportPasswordRequest>>) -> Result<Response<Self::ImportPasswordsStream>, Status>  {
-        todo!()
+        import_passwords::import_passwords(self.clone(), request).await
     }
 
     #[instrument(skip(self, request), fields(remote_addr=?request.remote_addr().unwrap()))]

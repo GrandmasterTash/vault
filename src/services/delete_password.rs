@@ -43,11 +43,8 @@ pub async fn delete_passwords(ctx: &ServiceContext, request: Request<Streaming<a
                     };
                 },
                 Err(err) => {
-                    tracing::error!("Failed to read a request from the stream: {:?}", err);
-
-                    if let Err(err) = tx.send(Ok(api::DeleteResponse { deleted_count: 0 })).await {
-                        tracing::error!("Unable to notify response stream about the failed delete: {:?}", err);
-                    };
+                    tracing::error!("Failed to read a delete request from the stream: {:?}", err);
+                    break; // Pull the plug to avoid an infinite loop.
                 },
             }
         }

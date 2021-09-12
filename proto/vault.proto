@@ -81,6 +81,8 @@ service Vault {
      * via some other service/orchestration endpoint.
      */
 
+    // TODO: Document the status these APIs can return.
+
     /*
      * This method will hash the plain text password and store the hash in Vault.
      * If an existing password_id is specified, the new password takes it's place. If no password_id
@@ -94,14 +96,6 @@ service Vault {
      * indicate the caller must call ChangePassword instead.
      */
     rpc ValidatePassword (ValidateRequest) returns (common.Empty) {}
-
-    /*
-     * This method allows the password to be changed if the existing correct password is also supplied
-     * with the request. Essentially a conveinence method which effectively does what both
-     * ValidatePassword and HashPassword does but at the same time for an existing password.
-     */
-    // Removed - as the caller can use validate and hash to acheive this! 
-    // rpc ChangePassword (ChangeRequest) returns (common.Empty) {}
 
     /*
      * This method can be used when a user needs to reset their password but doesn't know the
@@ -320,7 +314,7 @@ message ImportPasswordRequest {
 message ImportPasswordResponse {
     oneof result {
         string password_id = 1;
-        string failure_message = 2;
+        string error_message = 2;
     }
 }
 
@@ -338,12 +332,6 @@ message ValidateRequest {
     string password_id = 1;
     string plain_text_password = 2;
 }
-
-// message ChangeRequest {
-//     string plain_text_password = 1;
-//     string new_plain_text_password = 2;
-//     string password_id = 3;
-// }
 
 message StartResetRequest {
     string password_id = 1;

@@ -55,6 +55,7 @@ pub enum ErrorCode {
     NoResetTimestamp                = 2201,
     ResetWindowExpired              = 2202,
     DeleteByNotSpecified            = 2300,
+    PasswordNotSpecified            = 2301
 }
 
 impl ErrorCode {
@@ -63,7 +64,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VaultError {
     error_code: ErrorCode,
     message: String,
@@ -208,6 +209,7 @@ impl From<VaultError> for Status {
             NoResetCode                   |
             NoResetTimestamp              |
             PasswordContainsBannedPhrase  |
+            PasswordNotSpecified          |
             PasswordTooLong               |
             PasswordTooShort              |
             PasswordUsedBefore            |
