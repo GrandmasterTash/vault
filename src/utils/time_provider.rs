@@ -1,5 +1,8 @@
 use chrono::{DateTime, Utc};
 
+///
+/// An overridable clock - used for tests.
+///
 #[derive(Debug)]
 pub struct TimeProvider {
     fixed: Option<DateTime<Utc>>

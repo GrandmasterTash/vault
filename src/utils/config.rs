@@ -11,7 +11,7 @@ use super::errors::VaultError;
 pub struct Configuration {
     pub port: i32,                       // The port to run this service on.
     pub kafka_servers: String,           // The Kafka brokers.
-    pub kafka_timeout: i32,              // The Kafka message timeout.
+    pub kafka_timeout: i32,              // The Kafka message timeout in ms.
     pub db_name: String,                 // The MongoDB name to use.
     pub mongo_uri: String,               // The MongoDB connection URI. If a credentials file is used, $USERNAME, $PASSWORD should be used in the uri as placeholders.
     pub mongo_credentials: Option<String>, // The path to the credentials file for MongoDB - None means use URI as-is.

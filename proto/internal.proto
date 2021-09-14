@@ -1,12 +1,8 @@
 syntax = "proto3";
 import "common.proto";
-package grpc.admin;
+package grpc.internal;
 
-// TODO: Rename internal.
-service Admin {
-    // TODO: Replace this with https://github.com/hyperium/tonic/tree/master/examples/src/health
-    rpc Ping (common.Empty) returns (common.Empty) {}
-
+service Internal {
     /*
      * This API is internal and intended only to be used during integration tests.
      *

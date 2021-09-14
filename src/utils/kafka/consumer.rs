@@ -1,8 +1,12 @@
 use std::sync::Arc;
+use chrono::DateTime;
+use chrono::Utc;
+use parking_lot::Mutex;
 use tokio::sync::mpsc;
 use super::prelude::*;
 use tracing::instrument;
 use crate::{APP_NAME, db};
+use lazy_static::lazy_static;
 use crate::utils::generate_id;
 use rdkafka::message::Headers;
 use rdkafka::message::Message;
@@ -14,7 +18,14 @@ use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
 
 /// All the topics this service needs to monitor.
-pub const CONSUMER_TOPICS: [&str;2] = [TOPIC_POLICY_ACTIVATED, TOPIC_PASSWORD_TYPE_DELETED];
+pub const CONSUMER_TOPICS: [&str;3] = [
+    TOPIC_POLICY_ACTIVATED,
+    TOPIC_PASSWORD_TYPE_DELETED,
+    TOPIC_VAULT_HEARTBEAT];
+
+lazy_static! {
+    pub static ref KAFKA_HEARTBEAT: Mutex<DateTime<Utc>> = Mutex::new(Utc::now());
+}
 
 // Because our app produces and consumes to/from the same topic, we need a signal during start-up
 // that suspends the server start-up, until the consumergroup has been balanced and we know that
@@ -41,6 +52,7 @@ impl ConsumerContext for CustomContext {
         // If we didn't do this, the server could start producing events we would miss.
         let tx = self.tx.clone();
         let _ = tokio::spawn(async move {
+            tracing::info!("Consumer started");
             tracing::debug!("Kafka consumer notifying server it's ready to receive");
             let _ = tx.send(true).await; // Ignore any send failures - main start-up will timeout anyway.
         });
@@ -55,7 +67,7 @@ impl ConsumerContext for CustomContext {
 /// A spawned Kafka consumer loop to handle any messages on topics we're subscribed to.
 ///
 pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
-    tracing::info!("Consumer starting");
+    tracing::info!("Consumer starting...");
 
     let consumer: StreamConsumer<CustomContext> = ClientConfig::new()
         .set("group.id", &format!("{}_{}", APP_NAME, generate_id()))
@@ -79,33 +91,33 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
                 tracing::warn!("Kafka error: {}", e);
             },
             Ok(m) => {
-                let payload = match m.payload_view::<str>() {
-                    None => "",
-                    Some(Ok(s)) => s,
-                    Some(Err(e)) => {
-                        tracing::warn!("Error while deserializing message payload: {:?}", e);
-                        ""
+                // Only read the payload if we're interested in that topic.
+                if CONSUMER_TOPICS.contains(&m.topic()) {
+                    let payload = match m.payload_view::<str>() {
+                        None => "",
+                        Some(Ok(s)) => s,
+                        Some(Err(e)) => {
+                            tracing::warn!("Error while deserializing message payload: {:?}", e);
+                            ""
+                        }
+                    };
+
+                    tracing::debug!("key: '{:?}', payload: '{}', topic: {}, partition: {}, offset: {}, timestamp: {:?}",
+                            m.key(), payload, m.topic(), m.partition(), m.offset(), m.timestamp());
+
+                    if let Some(headers) = m.headers() {
+                        for i in 0..headers.count() {
+                            let header = headers.get(i).unwrap();
+                            tracing::debug!("  Header {:#?}: {:?}", header.0, header.1);
+                        }
                     }
-                };
 
-                tracing::debug!("key: '{:?}', payload: '{}', topic: {}, partition: {}, offset: {}, timestamp: {:?}",
-                        m.key(), payload, m.topic(), m.partition(), m.offset(), m.timestamp());
-
-                if let Some(headers) = m.headers() {
-                    for i in 0..headers.count() {
-                        let header = headers.get(i).unwrap();
-                        tracing::debug!("  Header {:#?}: {:?}", header.0, header.1);
-                    }
-                }
-
-                // TODO: Ensure v1 version
-                if m.topic() == TOPIC_POLICY_ACTIVATED {
-                    // Could check version header to route to alternated handlers.
-                    handle_policy_activated(payload, ctx.clone()).await;
-                }
-
-                if m.topic() == TOPIC_PASSWORD_TYPE_DELETED {
-                    handle_password_type_deleted(payload, ctx.clone()).await;
+                    match m.topic() {
+                        TOPIC_POLICY_ACTIVATED      => handle_policy_activated(payload, ctx.clone()).await,
+                        TOPIC_PASSWORD_TYPE_DELETED => handle_password_type_deleted(payload, ctx.clone()).await,
+                        TOPIC_VAULT_HEARTBEAT       => handle_heartbeat(ctx.clone()),
+                        _ => {},
+                    };
                 }
 
                 consumer.commit_message(&m, CommitMode::Async).unwrap();
@@ -133,6 +145,15 @@ async fn handle_policy_activated(payload: &str, ctx: Arc<ServiceContext>) {
         },
         Err(err) => tracing::warn!("Unable to process message on topic: {}: {}: {}", TOPIC_POLICY_ACTIVATED, payload, err),
     };
+}
+
+
+///
+/// Update the heartbeat timestamp.
+///
+fn handle_heartbeat(ctx: Arc<ServiceContext>) {
+    let mut lock = KAFKA_HEARTBEAT.lock();
+    *lock = ctx.now();
 }
 
 

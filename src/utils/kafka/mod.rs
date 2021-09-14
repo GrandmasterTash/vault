@@ -1,6 +1,7 @@
 pub mod consumer;
 pub mod producer;
 
+use serde::Serialize;
 use std::time::Duration;
 use super::config::Configuration;
 use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicReplication}, client::DefaultClientContext};
@@ -10,7 +11,15 @@ pub mod prelude {
     pub const TOPIC_POLICY_CREATED:        &str = "password.policy.created";
     pub const TOPIC_POLICY_ACTIVATED:      &str = "password.policy.activated";
     pub const TOPIC_PASSWORD_TYPE_DELETED: &str = "password.type.deleted";
+    pub const TOPIC_VAULT_HEARTBEAT:       &str = "vault.heartbeat";
 }
+
+///
+/// The service sends itself a heartbeat message - used to monitor the health of the
+/// Kafka instance.
+///
+#[derive(Serialize)]
+pub struct Heartbeat{}
 
 ///
 /// Pre-create any topics we want to subscribe to - seems to be an issue in the driver and auto-create doesn't work.

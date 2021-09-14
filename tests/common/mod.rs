@@ -5,7 +5,7 @@ use tonic::transport::Channel;
 use tokio_retry::{Retry, strategy::FixedInterval};
 use std::{collections::HashMap, thread::JoinHandle, time::Duration};
 use parking_lot::{Mutex, RawMutex, lock_api::MutexGuard};
-use vault::{grpc::{admin::admin_client::AdminClient, api::vault_client::VaultClient}, utils::kafka::consumer::CONSUMER_TOPICS};
+use vault::{grpc::{internal::internal_client::InternalClient, api::vault_client::VaultClient}, utils::kafka::consumer::CONSUMER_TOPICS};
 
 lazy_static! {
     // A mutex around the TestContext to ensure only one test can be using the service at a time.
@@ -46,7 +46,7 @@ pub struct TestContext {
     config: TestConfig,
     server_handle: Option<JoinHandle<()>>,
     client: Option<VaultClient<Channel>>,
-    admin: Option<AdminClient<Channel>>,
+    internal: Option<InternalClient<Channel>>,
 }
 
 impl TestContext {
@@ -54,8 +54,8 @@ impl TestContext {
         self.client.as_mut().expect("Someone asked for a test client when there wasn't one")
     }
 
-    pub fn admin(&mut self) -> &mut AdminClient<Channel> {
-        self.admin.as_mut().expect("Someone asked for a test admin client when there wasn't one")
+    pub fn internal(&mut self) -> &mut InternalClient<Channel> {
+        self.internal.as_mut().expect("Someone asked for a test internal client when there wasn't one")
     }
 }
 
@@ -64,7 +64,7 @@ impl Default for TestContext {
         Self {
             server_handle: None,
             client: None,
-            admin: None,
+            internal: None,
             config: Default::default()
         }
     }
@@ -135,7 +135,7 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
 
         // Destroy any previous test client.
         ctx.client.take();
-        ctx.admin.take();
+        ctx.internal.take();
     }
 
     // If the server is not running, start it.
@@ -143,12 +143,12 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
         // Before we start a new running server. Delete any Kafka topics it consumes. This stops
         // uncommitted messages from previous test runs from being delivered to the server and
         // causing it to try to process messages for data that doesn't exist.
-        let admin_client: KafkaAdminClient<DefaultClientContext> = ClientConfig::new()
+        let internal_client: KafkaAdminClient<DefaultClientContext> = ClientConfig::new()
                 .set("bootstrap.servers", format!("{}", config.get("KAFKA_SERVERS")))
                 .create()
                 .expect("test admin client creation failed");
         let opts = AdminOptions::new().operation_timeout(Some(Duration::from_millis(5000)));
-        admin_client.delete_topics(&CONSUMER_TOPICS, &opts).await.expect("Unable to delete topics");
+        internal_client.delete_topics(&CONSUMER_TOPICS, &opts).await.expect("Unable to delete topics");
 
         // TODO: Connect to the MongoDB and drop any existing database to ensure we start with
         // clean data.
@@ -185,17 +185,17 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
 
     // Need to establish an admin client too.
     let connect = move || {
-        AdminClient::connect(format!("http://[::]:{}", port))
+        InternalClient::connect(format!("http://[::]:{}", port))
     };
 
     // Try to connect for up-to 1 minute.
-    let admin_client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+    let internal_client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
         .await
         .expect("Unable to connect admin test client to server under test");
 
     // Put the clients in the TestContext struct for the test to use.
     ctx.client = Some(client);
-    ctx.admin = Some(admin_client);
+    ctx.internal = Some(internal_client);
 
     ctx
 }
@@ -205,7 +205,7 @@ pub mod helper {
     use super::TestContextLock;
     use tokio_retry::{Retry, strategy::FixedInterval};
     use tonic::{Request, Status};
-    use vault::grpc::{admin, api::{self, vault_client::VaultClient}, common};
+    use vault::grpc::{internal, api::{self, vault_client::VaultClient}, common};
 
     ///
     /// Parse a numeric error code out of the body of an error Status response.
@@ -219,9 +219,9 @@ pub mod helper {
     /// Test helper to set vault to use a fixed time whenever it calls .now().
     ///
     pub async fn set_time(new_time: &str, ctx: &mut TestContextLock<'_>) {
-        ctx.admin().set_time(
+        ctx.internal().set_time(
             Request::new(
-                admin::NewTime { new_time: new_time.to_string() } ))
+                internal::NewTime { new_time: new_time.to_string() } ))
                 .await
                 .unwrap();
     }
@@ -230,7 +230,7 @@ pub mod helper {
     /// Test helper to set vault to use the normal clock for .now().
     ///
     pub async fn _reset_time(ctx: &mut TestContextLock<'_>) {
-        ctx.admin().reset_time(Request::new(common::Empty::default()))
+        ctx.internal().reset_time(Request::new(common::Empty::default()))
             .await
             .unwrap();
     }

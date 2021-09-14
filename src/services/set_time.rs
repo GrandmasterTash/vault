@@ -1,10 +1,10 @@
 use super::ServiceContext;
 use chrono::{DateTime, Utc};
-use crate::grpc::{admin, common};
+use crate::grpc::{internal, common};
 use tonic::{Request, Response, Status};
 
 
-pub async fn set_time(ctx: &ServiceContext, request: Request<admin::NewTime>)
+pub async fn set_time(ctx: &ServiceContext, request: Request<internal::NewTime>)
     -> Result<Response<common::Empty>, Status> {
 
     let request = request.into_inner();

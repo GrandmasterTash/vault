@@ -8,11 +8,12 @@ use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
 use tonic::transport::Server;
+use utils::health;
 use utils::errors::VaultError;
 use utils::context::ServiceContext;
 use utils::config::{Configuration, self};
 use grpc::api::vault_server::VaultServer;
-use grpc::admin::admin_server::AdminServer;
+use grpc::internal::internal_server::InternalServer;
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, util::SubscriberInitExt};
 
@@ -32,8 +33,8 @@ pub mod grpc {
         tonic::include_proto!("grpc.vault");
     }
 
-    pub mod admin {
-        tonic::include_proto!("grpc.admin");
+    pub mod internal {
+        tonic::include_proto!("grpc.internal");
     }
 }
 
@@ -84,11 +85,20 @@ pub async fn lib_main() -> Result<(), VaultError> {
     #[cfg(feature = "kafka")]
     start_and_wait_for_consumer(ctx.clone()).await;
 
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter
+        .set_serving::<VaultServer<Arc<ServiceContext>>>()
+        .await;
+
+    tokio::spawn(health::monitor(ctx.clone(), health_reporter.clone()));
+
+    tracing::info!("Health probe enabled for service grpc.vault.Vault");
     tracing::info!("{} listening on {}", APP_NAME, addr);
 
     Server::builder()
         .add_service(VaultServer::new(ctx.clone()))
-        .add_service(AdminServer::new(ctx.clone()))
+        .add_service(InternalServer::new(ctx.clone()))
+        .add_service(health_service)
         .serve(addr)
         .await?;
 

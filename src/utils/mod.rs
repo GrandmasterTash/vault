@@ -3,6 +3,7 @@ use uuid::Uuid;
 pub mod config;
 pub mod context;
 pub mod errors;
+pub mod health;
 pub mod time_provider;
 
 #[cfg(feature = "kafka")]

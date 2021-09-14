@@ -62,7 +62,7 @@ package grpc.vault;
  *
  * When a password is hashed it can either be given a password_id by the caller or allowed to generate
  * and return a password_id to the caller. In the latter case, the caller must then store this password_id
- * in some form of account management system. password_ids must be provided when the password needs 
+ * in some form of account management system. password_ids must be provided when the password needs
  * to be validated against a user-supplied value.
  *
  *
@@ -81,7 +81,6 @@ service Vault {
      * via some other service/orchestration endpoint.
      */
 
-    // TODO: Document the status these APIs can return.
 
     /*
      * This method will hash the plain text password and store the hash in Vault.
