@@ -3,12 +3,11 @@ use mongodb::bson;
 use tokio::task::JoinError;
 use tonic::{Code, Status};
 use bson::document::ValueAccessError;
-
-#[cfg(feature = "kafka")]
 use rdkafka::{error::KafkaError, message::OwnedMessage};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ErrorCode {
+    IOError                         = 0300,
     TonicStartError                 = 0400,
     HashThreadingIssue              = 0401,
     UnableToReadCredentials         = 0500,
@@ -86,6 +85,12 @@ impl VaultError {
     }
 }
 
+// impl From<std::io::Error> for VaultError {
+//     fn from(error: std::io::Error) -> Self {
+//         ErrorCode::IOError.with_msg(&format!("{}", error.to_string()))
+//     }
+// }
+
 impl From<tonic::transport::Error> for VaultError {
     fn from(error: tonic::transport::Error) -> Self {
         ErrorCode::TonicStartError.with_msg(&format!("Failed to start gRPC server: {}", error))
@@ -160,7 +165,6 @@ impl From<pbkdf2::password_hash::Error> for VaultError {
     }
 }
 
-#[cfg(feature = "kafka")]
 impl From<(KafkaError, OwnedMessage)> for VaultError {
     fn from((error, message): (KafkaError, OwnedMessage)) -> Self {
         ErrorCode::KafkaSendError.with_msg(&format!("Kafka error: {}, message: {:?}", error, message))
@@ -184,6 +188,7 @@ impl From<VaultError> for Status {
             InvalidBSON             |
             InvalidJSON             |
             InvalidPHCFormat        |
+            IOError                 |
             KafkaSendError          |
             MongoDBError            |
             TonicStartError         |

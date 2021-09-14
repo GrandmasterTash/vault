@@ -4,21 +4,20 @@ mod services;
 pub mod utils;
 
 use db::mongo;
+use utils::kafka;
+use utils::health;
 use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
-use tonic::transport::Server;
-use utils::health;
 use utils::errors::VaultError;
 use utils::context::ServiceContext;
 use utils::config::{Configuration, self};
 use grpc::api::vault_server::VaultServer;
 use grpc::internal::internal_server::InternalServer;
+use tonic::transport::{Identity, Server, ServerTlsConfig};
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, util::SubscriberInitExt};
-
-#[cfg(feature = "kafka")]
-use utils::kafka;
+use crate::utils::errors::ErrorCode;
 
 ///
 /// These are the generated gRPC/protobuf modules which give us access to the message structures, services,
@@ -59,9 +58,8 @@ pub async fn lib_main() -> Result<(), VaultError> {
 
     tracing::info!("{}\n{}", BANNER, config.fmt_console()?);
 
-    // The port we'll serve on.
-    // let addr = format!("0.0.0.0:{}", config.port).parse().unwrap();
-    let addr = format!("[::1]:{}", config.port).parse().unwrap();
+    // TLS set-up.
+    let identity = init_tls().await?;
 
     // Create a MongoDB client and connect to it before proceeding.
     let db = mongo::get_mongo_db(APP_NAME, &config).await?;
@@ -73,7 +71,6 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let active_policies = db::policy::load_active(&db).await?;
 
     // Create any consumer topics we need to listen to.
-    #[cfg(feature = "kafka")]
     kafka::create_topics(&config).await;
 
     // The service context allows any gRPC service access to shared stuff (databases, notification producers, etc.).
@@ -82,7 +79,6 @@ pub async fn lib_main() -> Result<(), VaultError> {
         db.clone(),
         active_policies));
 
-    #[cfg(feature = "kafka")]
     start_and_wait_for_consumer(ctx.clone()).await;
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
@@ -92,10 +88,14 @@ pub async fn lib_main() -> Result<(), VaultError> {
 
     tokio::spawn(health::monitor(ctx.clone(), health_reporter.clone()));
 
+    // The port we'll serve on.
+    let addr = format!("[::1]:{}", config.port).parse().unwrap();
+
     tracing::info!("Health probe enabled for service grpc.vault.Vault");
-    tracing::info!("{} listening on {}", APP_NAME, addr);
+    tracing::info!("{} listening on {} and using tls", APP_NAME, addr);
 
     Server::builder()
+        .tls_config(ServerTlsConfig::new().identity(identity))?
         .add_service(VaultServer::new(ctx.clone()))
         .add_service(InternalServer::new(ctx.clone()))
         .add_service(health_service)
@@ -110,6 +110,24 @@ pub async fn lib_main() -> Result<(), VaultError> {
     // TODO: Need Ctrl-C handling - https://docs.rs/tokio/1.10.1/tokio/signal/index.html
 
     Ok(())
+}
+
+///
+/// Bind to the server-side key and certificate.
+///
+async fn init_tls() -> Result<Identity, VaultError> {
+
+    tracing::info!("Initialising TLS config");
+
+    let cert = tokio::fs::read("certs/cert.pem")
+        .await
+        .map_err(|e| ErrorCode::IOError.with_msg(&format!("Failed to open pem: {}", e.to_string())))?;
+
+    let key = tokio::fs::read("certs/key.pem")
+        .await
+        .map_err(|e| ErrorCode::IOError.with_msg(&format!("Failed to open key: {}", e.to_string())))?;
+
+    Ok(Identity::from_pem(cert, key))
 }
 
 ///

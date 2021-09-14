@@ -2,12 +2,9 @@ use mongodb::Database;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use rdkafka::producer::FutureProducer;
 use parking_lot::{RwLock, lock_api::RwLockReadGuard};
 use crate::{model::policy::{ActivePolicy, Policy}, utils::{config::Configuration, errors::{ErrorCode, VaultError}, time_provider::TimeProvider}};
-
-#[cfg(feature = "kafka")]
-use rdkafka::producer::FutureProducer;
-
 
 type ActivePoliciesRwLock<'a> = RwLockReadGuard<'a, parking_lot::RawRwLock, HashMap<String, ActivePolicy>>;
 
@@ -20,8 +17,6 @@ pub struct ServiceContext {
     config: Configuration,
     active_policies: RwLock<HashMap<String/* password_type */, ActivePolicy>>,
     time_provider: RwLock<TimeProvider>,
-
-    #[cfg(feature = "kafka")]
     producer: FutureProducer,
 }
 
@@ -35,8 +30,6 @@ impl ServiceContext {
             config: config.clone(),
             active_policies: RwLock::new(active_policies),
             time_provider: RwLock::new(TimeProvider::default()),
-
-            #[cfg(feature = "kafka")]
             producer: crate::utils::kafka::producer::producer(&config),
         }
     }
@@ -44,9 +37,7 @@ impl ServiceContext {
     ///
     /// Publish the JSON payload to the topic specified - if Kafka is configured.
     ///
-    #[allow(unused_variables)]
     pub async fn send(&self, topic: &str, payload: Value) -> Result<(), VaultError> {
-        #[cfg(feature = "kafka")]
         crate::utils::kafka::producer::send(
             &self.producer,
             &self.config,

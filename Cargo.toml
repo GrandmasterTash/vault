@@ -17,17 +17,12 @@ name = "vault"
 path = "src/main.rs"
 test = false            # Don't run doctests.
 
-[features]
-default = ["kafka"]
-kafka = ["rdkafka"]
-
 [dependencies]
 # For Tracing.
 tracing = "0.1.26"
 tracing-subscriber = "0.2.18"
 
 # Open-telemetry and jaeger
-#opentelemetry-prometheus = "0.4.0"
 opentelemetry = { version = "0.15.0", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.14.0", features = ["tokio"] }
 tracing-opentelemetry = "0.14.0"
@@ -37,15 +32,13 @@ serde = "1.0.126"
 serde_json = "1.0.64"
 derive_more = "0.99.14"
 parking_lot = "0.11.1"
-#itertools = "0.10.1"
 rand = "0.8.4"
 
 # For gRPC
-tonic = "0.5.2"
+tonic = { version = "0.5.2", features = ["tls"] }
 tonic-health = "0.4.1"
 prost = "0.8"
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-# For stream request / response.
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs"] }
 futures = { version = "0.3.15", default-features = false, features = ["alloc"] }
 tokio-stream = { version =  "0.1", features = ["net"] }
 
@@ -59,10 +52,9 @@ mongodb = "2.0.0"
 bson = { version = "2.0.0", features = [ "chrono-0_4" ] }
 uuid = "0.8.2"
 chrono = { version = "0.4.19", features = ["serde"] }
-#futures = "0.3.15"
 
 # For Kafka
-rdkafka = { version = "0.26.0", optional = true }
+rdkafka = "0.26.0"
 lazy_static = "1.4.0"
 
 # Hashing
@@ -77,6 +69,4 @@ tonic-build = "0.5"
 
 [dev-dependencies]
 parking_lot = "0.11.1"
-# Allows timeouts on test clients.
-#tower = "0.4.7"
 tokio-retry = "0.3.0"

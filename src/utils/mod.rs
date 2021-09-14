@@ -4,10 +4,8 @@ pub mod config;
 pub mod context;
 pub mod errors;
 pub mod health;
-pub mod time_provider;
-
-#[cfg(feature = "kafka")]
 pub mod kafka;
+pub mod time_provider;
 
 
 pub fn generate_id() -> String {

@@ -1,7 +1,7 @@
 use rdkafka::admin::{AdminClient as KafkaAdminClient, AdminOptions};
 use lazy_static::lazy_static;
 use rdkafka::{ClientConfig, client::DefaultClientContext};
-use tonic::transport::Channel;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Uri};
 use tokio_retry::{Retry, strategy::FixedInterval};
 use std::{collections::HashMap, thread::JoinHandle, time::Duration};
 use parking_lot::{Mutex, RawMutex, lock_api::MutexGuard};
@@ -175,29 +175,50 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
     // Connect a test client to the service - the closure is used in retry spawn below.
     let port = ctx.config.get("PORT");
     let connect = move || {
-        VaultClient::connect(format!("http://[::]:{}", port))
+        connect_channel(port)
+        // VaultClient::connect(format!("http://[::]:{}", port))
     };
 
     // Try to connect for up-to 1 minute.
-    let client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+    // let client_channel = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+    let client_channel = Retry::spawn(FixedInterval::from_millis(100).take(60), connect)
         .await
         .expect("Unable to connect test client to server under test");
 
     // Need to establish an admin client too.
     let connect = move || {
-        InternalClient::connect(format!("http://[::]:{}", port))
+        connect_channel(port)
+        // InternalClient::connect(format!("http://[::]:{}", port))
     };
 
     // Try to connect for up-to 1 minute.
-    let internal_client = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+    // let internal_channel = Retry::spawn(FixedInterval::from_millis(100).take(600), connect)
+    let internal_channel = Retry::spawn(FixedInterval::from_millis(100).take(60), connect)
         .await
         .expect("Unable to connect admin test client to server under test");
 
     // Put the clients in the TestContext struct for the test to use.
-    ctx.client = Some(client);
-    ctx.internal = Some(internal_client);
+    ctx.client = Some(VaultClient::new(client_channel));
+    ctx.internal = Some(InternalClient::new(internal_channel));
 
     ctx
+}
+
+async fn connect_channel(port: &str) -> Result<tonic::transport::Channel, tonic::transport::Error> {
+    let pem = tokio::fs::read("certs/ca.pem").await.unwrap();
+    let ca = Certificate::from_pem(pem);
+
+    let tls = ClientTlsConfig::new()
+        .ca_certificate(ca)
+        .domain_name("example.com");
+
+    let uri = format!("http://[::]:{}", port).parse::<Uri>().unwrap();
+
+    Channel::builder(uri)
+        .tls_config(tls)
+        .unwrap()
+        .connect()
+        .await
 }
 
 
