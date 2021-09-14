@@ -1,7 +1,6 @@
 TODO: Add more Kafka notifications.
 TODO: Optimise Tests/Kafka connection.
 TODO: Kafka credentials?
-TODO: Pepper via secrets file or env var.
 TODO: Helm chart.
 TODO: Clippy and audit and gutters.
 TODO: Join kafka consumer trace to publish trace?
@@ -13,6 +12,10 @@ Note: Handy https://github.com/bradleyjkemp/grpc-tools
 
 See vault.proto for API documentation.
 
+
+
+Pepper
+------
 
 
 

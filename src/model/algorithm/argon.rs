@@ -1,5 +1,5 @@
 use rand_core::OsRng;
-use std::str::FromStr;
+use std::{fs, str::FromStr};
 use derive_more::Display;
 use std::convert::TryFrom;
 use serde::{Deserialize, Serialize};
@@ -24,8 +24,16 @@ pub struct ArgonPolicy {
 
 
 pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
+    let pepper = pepper()?;
+    let algorithm = argon2::Argon2::new(
+        Some(pepper.as_bytes()),
+        12, // Ignored - phc values are used.
+        12, // Ignored - phc values are used.
+        1,  // Ignored - phc values are used.
+        argon2::Version::V0x13)?;
+
     let parsed_hash = argon2::PasswordHash::new(&phc).unwrap();
-    match argon2::PasswordVerifier::verify_password(&argon2::Argon2::default(), plain_text_password.as_bytes(), &parsed_hash) {
+    match argon2::PasswordVerifier::verify_password(&algorithm, plain_text_password.as_bytes(), &parsed_hash) {
         Ok(_)  => Ok(true),
         Err(_) => Ok(false),
     }
@@ -35,9 +43,10 @@ pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError
 pub fn hash_into_phc(argon: &ArgonPolicy, plain_text_password: &str) -> Result<String, VaultError> {
     let password = plain_text_password.as_bytes();
     let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
+    let pepper = pepper()?;
 
     let algorithm = argon2::Argon2::new(
-        None /* TODO: pepper */,
+        Some(pepper.as_bytes()),
         argon.iterations,
         argon.memory_size_kb,
         argon.parallelism,
@@ -45,6 +54,15 @@ pub fn hash_into_phc(argon: &ArgonPolicy, plain_text_password: &str) -> Result<S
 
     // Hash password to PHC string ($argon2id$v=19$...)
     Ok(argon2::PasswordHasher::hash_password_simple(&algorithm, password, salt.as_ref())?.to_string())
+}
+
+
+///
+/// Read the secret pepper from a file - this is a blocking operation.
+///
+fn pepper() -> Result<String, VaultError> {
+    fs::read_to_string("secrets/pepper/pepper")
+        .map_err(|err| VaultError::new(ErrorCode::SecretFileMissing, &format!("Unable to read secret: {}", err)))
 }
 
 
@@ -62,9 +80,10 @@ pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, 
     let memory_size_kb = parsed_hash.params.get("m").expect("No memory size in phc").decimal().expect("Memory size in phc not numeric");
     let parallelism = parsed_hash.params.get("p").expect("No parallelism in phc").decimal().expect("Parallelism in phc no numeric");
     let version = parsed_hash.version.expect("No version in phc");
+    let pepper = pepper()?;
 
     let alogrithm = argon2::Argon2::new(
-        None /* TODO: pepper */,
+        Some(pepper.as_bytes()),
         iterations,
         memory_size_kb,
         parallelism,

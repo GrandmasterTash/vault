@@ -29,7 +29,6 @@ pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError
 
 
 pub fn hash_into_phc(pbkdf2: &PBKDF2Policy, plain_text_password: &str) -> Result<String, VaultError> {
-    // TODO: A pepper.
     let salt = SaltString::generate(&mut OsRng);
     let salt = Salt::new(salt.as_str()).unwrap();
     let params = pbkdf2::Params {

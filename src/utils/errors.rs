@@ -10,18 +10,19 @@ pub enum ErrorCode {
     IOError                         = 0300,
     TonicStartError                 = 0400,
     HashThreadingIssue              = 0401,
+    SecretFileMissing               = 0499,
     UnableToReadCredentials         = 0500,
     ConfigDocumentNotFound          = 0501,
     ActivePolicyNotFound            = 0502,
-    MongoDBError                    = 0503,
-    InvalidBSON                     = 0504,
-    InvalidJSON                     = 0505,
-    KafkaSendError                  = 0506,
-    BSONFieldNotFound               = 0507,
-    InvalidAlgorthimConfig          = 0508,
-    HashingError                    = 0509,
-    InvalidPHCFormat                = 0510,
-    UnknownAlgorithmVariant         = 0511,
+    MongoDBError                    = 0513,
+    InvalidBSON                     = 0514,
+    InvalidJSON                     = 0515,
+    KafkaSendError                  = 0516,
+    BSONFieldNotFound               = 0517,
+    InvalidAlgorthimConfig          = 0608,
+    HashingError                    = 0609,
+    InvalidPHCFormat                = 0610,
+    UnknownAlgorithmVariant         = 0611,
     PolicyMandatory                 = 1000,
     PolicyNotFound                  = 1001,
     AlgorthimMandatory              = 1002,
@@ -191,6 +192,7 @@ impl From<VaultError> for Status {
             IOError                 |
             KafkaSendError          |
             MongoDBError            |
+            SecretFileMissing       |
             TonicStartError         |
             UnableToReadCredentials |
             UnknownAlgorithmVariant => Code::Internal,

@@ -25,7 +25,7 @@ pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError
 
 pub fn hash_into_phc(bcrypt: &BCryptPolicy, plain_text_password: &str) -> Result<String, VaultError> {
     // Use argon to generate a salt.
-    let salt = argon2::password_hash::SaltString::generate(&mut OsRng); // TODO: include a pepper.
+    let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
     let salt: String = salt.as_str().chars().take(16).collect();
     let hashed = bcrypt::hash_with_salt(plain_text_password, bcrypt.cost, salt.as_bytes())?;
 
