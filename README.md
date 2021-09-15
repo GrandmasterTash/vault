@@ -1,4 +1,3 @@
-TODO: Optimise Tests/Kafka connection.
 TODO: Helm chart.
 TODO: Clippy and audit and gutters.
 TODO: Join kafka consumer trace to publish trace?

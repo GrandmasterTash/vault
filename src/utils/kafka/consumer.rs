@@ -2,6 +2,7 @@ use std::sync::Arc;
 use chrono::DateTime;
 use chrono::Utc;
 use parking_lot::Mutex;
+use rdkafka::Offset;
 use tokio::sync::mpsc;
 use super::prelude::*;
 use tracing::instrument;
@@ -10,12 +11,11 @@ use lazy_static::lazy_static;
 use crate::utils::generate_id;
 use rdkafka::message::Headers;
 use rdkafka::message::Message;
-use rdkafka::error::KafkaResult;
 use crate::utils::context::ServiceContext;
-use crate::model::events::{PasswordTypeDeleted, PolicyActivated};
+use rdkafka::consumer::{CommitMode, Consumer};
+use rdkafka::{ClientConfig, TopicPartitionList};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
-use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
+use crate::model::events::{PasswordTypeDeleted, PolicyActivated};
 
 /// All the topics this service needs to monitor.
 pub const CONSUMER_TOPICS: [&str;3] = [
@@ -27,67 +27,37 @@ lazy_static! {
     pub static ref KAFKA_HEARTBEAT: Mutex<DateTime<Utc>> = Mutex::new(Utc::now());
 }
 
-// Because our app produces and consumes to/from the same topic, we need a signal during start-up
-// that suspends the server start-up, until the consumergroup has been balanced and we know that
-// our consumer will receive new messages on that topic.
-//
-// Without this, our server can send messages which it needs to listen to (active policy eventual
-// consistency for example), but it would never receive those messages (and we always want latest
-// offset when connecting).
-struct CustomContext {
-    tx: mpsc::Sender<bool> // Used to signal the main start-up sequence that the consumer is ready.
-}
-
-impl ClientContext for CustomContext {}
-
-impl ConsumerContext for CustomContext {
-    fn pre_rebalance(&self, rebalance: &Rebalance) {
-        tracing::debug!("Pre rebalance {:?}", rebalance);
-    }
-
-    fn post_rebalance(&self, rebalance: &Rebalance) {
-        tracing::debug!("Post rebalance {:?}", rebalance);
-
-        // Send a signal to the start-up loop we have been put into a consumer group.
-        // If we didn't do this, the server could start producing events we would miss.
-        let tx = self.tx.clone();
-        let _ = tokio::spawn(async move {
-            tracing::info!("Consumer started");
-            tracing::debug!("Kafka consumer notifying server it's ready to receive");
-            let _ = tx.send(true).await; // Ignore any send failures - main start-up will timeout anyway.
-        });
-    }
-
-    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
-        tracing::debug!("Committing offsets: {:?}", result);
-    }
-}
-
 ///
 /// A spawned Kafka consumer loop to handle any messages on topics we're subscribed to.
 ///
 pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
     tracing::info!("Consumer starting...");
 
-    let consumer: StreamConsumer<CustomContext> = ClientConfig::new()
+    let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", &format!("{}_{}", APP_NAME, generate_id()))
         .set("bootstrap.servers", format!("{}", ctx.config().kafka_servers))
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", format!("{}", ctx.config().kafka_timeout + 1000 /* Must be more than the publisher timeout aparently? */))
-        // .set("allow.auto.create.topics", "true") // Note: This doesn't work. So we use an admin client to pre-create topics we want to consume.
-        //.set("statistics.interval.ms", "30000")
         .set("auto.offset.reset", "latest")
-        // .set("fetch.max.wait.ms", "500")
-        // .set_log_level(rdkafka::config::RDKafkaLogLevel::Debug)
-        .create_with_context(CustomContext{tx})
+        .create()
         .expect("Consumer creation failed");
 
-        // TODO: EDIT: assigning partitions myself with Assign instead of Subscribe results in startup time of around 2sec instead
+    // Assigning the topics is quicker than subscribing.
+    let partition = 0;
+    let mut tpl = TopicPartitionList::new();
+
+    for topic in CONSUMER_TOPICS {
+        tpl.add_partition_offset(&topic, partition, Offset::End)
+            .expect(&format!("Unable to assign offset for topic {}", topic));
+    }
 
     consumer
-        // .assign(assignment)
-        .subscribe(&CONSUMER_TOPICS)
-        .expect("Can't subscribe to specified topics");
+        .assign(&tpl)
+        .expect("Can't assign consumer topic partition offsets");
+
+    tracing::info!("Consumer started");
+    tracing::debug!("Kafka consumer notifying server it's ready to receive");
+    let _ = tx.send(true).await; // Ignore any send failures - main start-up will timeout anyway.
 
     loop {
         match consumer.recv().await {
