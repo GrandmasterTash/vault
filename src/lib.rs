@@ -6,18 +6,20 @@ pub mod utils;
 use db::mongo;
 use utils::kafka;
 use utils::health;
+use tokio::signal;
 use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
 use utils::errors::VaultError;
 use utils::context::ServiceContext;
+use crate::utils::errors::ErrorCode;
 use utils::config::{Configuration, self};
 use grpc::api::vault_server::VaultServer;
+use tokio::sync::oneshot::{self};
 use grpc::internal::internal_server::InternalServer;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, Registry, util::SubscriberInitExt};
-use crate::utils::errors::ErrorCode;
 
 ///
 /// These are the generated gRPC/protobuf modules which give us access to the message structures, services,
@@ -49,6 +51,10 @@ pub async fn lib_main() -> Result<(), VaultError> {
 
     // Default log level to INFO if it's not specified.
     config::default_env("RUST_LOG", "INFO");
+
+    // SIGINT/ctrl+c handling for graceful shutdown.
+    let (signal_tx, signal_rx) = oneshot::channel();
+    let _signal = tokio::spawn(wait_for_signal(signal_tx));
 
     // Load the service configuration into struct and initialise any lazy statics.
     let config = Configuration::from_env().expect("The service configuration is not correct");
@@ -94,22 +100,32 @@ pub async fn lib_main() -> Result<(), VaultError> {
     tracing::info!("Health probe enabled for service grpc.vault.Vault");
     tracing::info!("{} listening on {} and using tls", APP_NAME, addr);
 
-    Server::builder()
+    let server = Server::builder()
         .tls_config(ServerTlsConfig::new().identity(identity))?
         .add_service(VaultServer::new(ctx.clone()))
         .add_service(InternalServer::new(ctx.clone()))
         .add_service(health_service)
-        .serve(addr)
-        .await?;
+        .serve_with_shutdown(addr, async {
+            signal_rx.await.ok();
+            tracing::info!("Graceful shutdown");
+        });
+
+    server.await?;
 
     if tracing {
         opentelemetry::global::shutdown_tracer_provider(); // sending remaining spans
     }
 
-    println!("Shutting down now sir");
-    // TODO: Need Ctrl-C handling - https://docs.rs/tokio/1.10.1/tokio/signal/index.html
-
     Ok(())
+}
+
+///
+/// Sends a oneshot signal when a SIGINT is received (Ctrl+C)
+///
+async fn wait_for_signal(tx: oneshot::Sender<()>) {
+    let _ = signal::ctrl_c().await;
+    tracing::info!("SIGINT received: shutting down");
+    let _ = tx.send(());
 }
 
 ///

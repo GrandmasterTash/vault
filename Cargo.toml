@@ -38,7 +38,7 @@ rand = "0.8.4"
 tonic = { version = "0.5.2", features = ["tls"] }
 tonic-health = "0.4.1"
 prost = "0.8"
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "signal"] }
 futures = { version = "0.3.15", default-features = false, features = ["alloc"] }
 tokio-stream = { version =  "0.1", features = ["net"] }
 

@@ -1,6 +1,6 @@
 use serde_json::json;
 use tonic::{Request, Response, Status};
-use crate::{db, db::prelude::*, grpc::api, model::{events::PasswordHashed, policy::Policy}, utils::{self, context::ServiceContext, errors::VaultError, kafka::prelude::TOPIC_PASSWORD_HASHED}};
+use crate::{db, db::prelude::*, grpc::api, model::{events::PasswordHashed, policy::Policy}, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::TOPIC_PASSWORD_HASHED}};
 
 ///
 /// Validate the password against the current password policy.
@@ -22,20 +22,30 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
     Ok(Response::new(api::HashResponse { password_id }))
 }
 
+
 pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: &str, password_type: &str, password_id: Option<String>)
     -> Result<String, VaultError> {
 
     // Check password against current policy.
     let policy = validate_password_get_policy(ctx, plain_text_password, password_type).await?;
 
+    // Get the supplied or generated password_id, and if it exists in the DB, the password record.
     let (password_id, password) = match &password_id {
         Some(password_id) => {
-            (password_id.clone(), db::password::load_if_present(password_id, ctx.db()).await?)
+            let password = db::password::load_if_present(password_id, ctx.db()).await?;
+
+            // Check the password_type on the request matches that on the password record.
+            if let Some(password) = &password {
+                if password.password_type != password_type {
+                    return Err(ErrorCode::PasswordTypesDontMatch
+                        .with_msg(&format!("The password_type on the request {} didn't match the stored type for password_id {}", password_type, password_id)))
+                }
+            }
+
+            (password_id.clone(), password)
         },
         None => (utils::generate_id(), None),
     };
-
-    // TODO: Check the password_type on the request matches that on the password if present.
 
     // Hash new password with a snapshot of the current policy. This is a highly CPU-bound activity so
     // perform it in the blocking thread pool not on the main event loop.
@@ -59,7 +69,6 @@ pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: 
 
     Ok(password_id)
 }
-
 
 ///
 /// Check the password doesn't violate the active policy.

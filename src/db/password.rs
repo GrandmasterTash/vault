@@ -46,7 +46,8 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
         PASSWORD_ID: password_id,
     };
 
-    // Note: The $push below keeps the last x phcs in the history array.
+    // Note: The $push below appends the password to the end of history, but only keeps the last x 
+    // phcs in the history array.
     let update = doc!{
         "$unset": {
             FAILURE_COUNT: "",

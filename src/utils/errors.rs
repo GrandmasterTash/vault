@@ -57,7 +57,8 @@ pub enum ErrorCode {
     DeleteByNotSpecified            = 2300,
     PasswordNotSpecified            = 2301,
     PasswordTypeNotFound            = 2400,
-    CannotRemoveDefault             = 2401
+    CannotRemoveDefault             = 2401,
+    PasswordTypesDontMatch          = 2402
 }
 
 impl ErrorCode {
@@ -223,6 +224,7 @@ impl From<VaultError> for Status {
             PasswordNotSpecified          |
             PasswordTooLong               |
             PasswordTooShort              |
+            PasswordTypesDontMatch        |
             PasswordUsedBefore            |
             PolicyMandatory               |
             TooManyLetters                |

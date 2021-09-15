@@ -331,8 +331,15 @@ impl From<Option<&api::new_policy::Algorithm>> for Algorithm {
 mod tests {
     use super::*;
 
+    const PLAIN_WOBBLE: &str = "Wobbl3!123";
+    const PLAIN_WIBBLE: &str = "Wibbl3!123";
+    const PLAIN_BIBBLE: &str = "Bibbl3!123";
+    const PHC_ARGON_WIBBLE: &str = "$argon2id$v=19$m=16384,t=1,p=1$RAevw7J/llbp4s2pikNCbg$0v5S03d258PdYzFiXbqxVSanuS8LyYhrakM95K/e/H0";
+    const PHC_ARGON_WOBBLE: &str = "$argon2id$v=19$m=16384,t=1,p=1$18XvO5BwdSkzNtWknyZ4IA$oCIUR1NFi14dfrk2ZHSWdgruDQQuXUbmnr0JH/n9j3s";
+    const PHC_ARGON_BIBBLE: &str = "$argon2id$v=19$m=16384,t=1,p=1$qd3lgjMnxbXgsU6yyYOQdQ$3qMvQYg1vEls90fTid4dIedXwQpXIjhj32tTMP8ue6o";
+
     #[test]
-    fn test_validate_pattern_prohibited_phrases() -> Result<(), VaultError> {
+    fn test_validate_pattern_prohibited_phrases() {
         let policy = Policy::default();
         let result = policy.validate_pattern("password123");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -340,11 +347,10 @@ mod tests {
             "the phrase 'password' is not allowed"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_min_length() -> Result<(), VaultError> {
+    fn test_validate_pattern_min_length() {
         let policy = Policy::default();
         let result = policy.validate_pattern("A!1");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -352,11 +358,10 @@ mod tests {
             "passwords must be at least 8 characters"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_max_length() -> Result<(), VaultError> {
+    fn test_validate_pattern_max_length() {
         let policy = Policy::default();
         let result = policy.validate_pattern("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!£$%^&*()_+-='@;:#~[{]},<.>/?`¬01234567890abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!£$%^&*()_+-='@;:#~[{]},<.>/?`¬01234567890");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -364,11 +369,10 @@ mod tests {
             "passwords may not be more than 128 characters"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_repeated() -> Result<(), VaultError> {
+    fn test_validate_pattern_repeated() {
         let policy = Policy::default();
         let result = policy.validate_pattern("A!heelllo");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -376,11 +380,10 @@ mod tests {
             "'l' was repeated too many times (2 is the maximum)"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_min_letters() -> Result<(), VaultError> {
+    fn test_validate_pattern_min_letters() {
         let policy = Policy::default();
         let result = policy.validate_pattern("!123456789");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -388,11 +391,10 @@ mod tests {
             "a password must contain at least 1 letters"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_max_letters() -> Result<(), VaultError> {
+    fn test_validate_pattern_max_letters() {
         let mut policy = Policy::default();
         policy.max_letters = 4;
         let result = policy.validate_pattern("!1abcdefg");
@@ -401,11 +403,10 @@ mod tests {
             "a password must not contain more than 4 letters"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_min_numbers() -> Result<(), VaultError> {
+    fn test_validate_pattern_min_numbers() {
         let policy = Policy::default();
         let result = policy.validate_pattern("!abcdefg");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -413,11 +414,10 @@ mod tests {
             "a password must contain at least 1 numbers"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_max_numbers() -> Result<(), VaultError> {
+    fn test_validate_pattern_max_numbers() {
         let mut policy = Policy::default();
         policy.max_numbers = 5;
         let result = policy.validate_pattern("!a123456789");
@@ -426,11 +426,10 @@ mod tests {
             "a password must not contain more than 5 numbers"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_min_symbols() -> Result<(), VaultError> {
+    fn test_validate_pattern_min_symbols() {
         let policy = Policy::default();
         let result = policy.validate_pattern("1abcdefg");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -438,11 +437,10 @@ mod tests {
             "a password must contain at least 1 symbols"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_max_symbols() -> Result<(), VaultError> {
+    fn test_validate_pattern_max_symbols() {
         let mut policy = Policy::default();
         policy.max_symbols = 6;
         let result = policy.validate_pattern("!a1!\"£$%^&*()");
@@ -451,11 +449,10 @@ mod tests {
             "a password must not contain more than 6 symbols"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_validate_pattern_mixed_case() -> Result<(), VaultError> {
+    fn test_validate_pattern_mixed_case() {
         let policy = Policy::default();
         let result = policy.validate_pattern("1!abcdefg");
         let expected: Result<(), VaultError> = Err(VaultError::new(
@@ -463,8 +460,48 @@ mod tests {
             "a password must contain a mixture of upper and lower case"));
 
         assert_eq!(result, expected);
-        Ok(())
     }
 
-    // TODO: Unit tests for ValidateHistory.
+    #[test]
+    fn test_validate_argon_max_history_is_utilised() {
+        let mut policy = Policy::default();
+        policy.algorithm_type = Algorithm::Argon;
+        policy.argon_policy = Some(ArgonPolicy::default());
+
+        let password = Password {
+            password_id: "unused".to_string(),
+            password_type: "unused".to_string(),
+            phc: "unused".to_string(),
+            changed_on: bson::DateTime::now(),
+            last_success: None,
+            first_failure: None,
+            failure_count: None,
+            reset_code: None,
+            reset_started_at: None,
+            history: Some(vec!(
+                PHC_ARGON_WIBBLE.to_string(),
+                PHC_ARGON_WOBBLE.to_string(),
+                PHC_ARGON_BIBBLE.to_string()))
+        };
+
+        policy.max_history_length = 3;
+        assert_eq!(policy.validate_history(PLAIN_WIBBLE, &password).is_ok(), false);
+        assert_eq!(policy.validate_history(PLAIN_WOBBLE, &password).is_ok(), false);
+        assert_eq!(policy.validate_history(PLAIN_BIBBLE, &password).is_ok(), false);
+
+        policy.max_history_length = 2;
+        assert_eq!(policy.validate_history(PLAIN_WIBBLE, &password).is_ok(), false);
+        assert_eq!(policy.validate_history(PLAIN_WOBBLE, &password).is_ok(), false);
+        assert_eq!(policy.validate_history(PLAIN_BIBBLE, &password).is_ok(), true);
+
+        policy.max_history_length = 1;
+        assert_eq!(policy.validate_history(PLAIN_WIBBLE, &password).is_ok(), false);
+        assert_eq!(policy.validate_history(PLAIN_WOBBLE, &password).is_ok(), true);
+        assert_eq!(policy.validate_history(PLAIN_BIBBLE, &password).is_ok(), true);
+
+        policy.max_history_length = 0;
+        assert_eq!(policy.validate_history(PLAIN_WIBBLE, &password).is_ok(), true);
+        assert_eq!(policy.validate_history(PLAIN_WOBBLE, &password).is_ok(), true);
+        assert_eq!(policy.validate_history(PLAIN_BIBBLE, &password).is_ok(), true);
+    }
 }

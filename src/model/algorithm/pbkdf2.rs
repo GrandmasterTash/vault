@@ -7,8 +7,6 @@ use crate::{grpc::api, utils::errors::VaultError};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PBKDF2Policy {
     pub cost: u32,
-
-    // TODO: We can also use sha256 or sha512 variants.
     pub output_len: u32, // Hash output length in bytes
 }
 

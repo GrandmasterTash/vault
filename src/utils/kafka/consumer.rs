@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use chrono::DateTime;
 use chrono::Utc;
-use parking_lot::Mutex;
+use std::sync::Arc;
 use rdkafka::Offset;
-use tokio::sync::mpsc;
+use chrono::DateTime;
 use super::prelude::*;
+use tokio::sync::mpsc;
+use parking_lot::Mutex;
 use tracing::instrument;
 use crate::{APP_NAME, db};
 use lazy_static::lazy_static;
@@ -30,7 +30,7 @@ lazy_static! {
 ///
 /// A spawned Kafka consumer loop to handle any messages on topics we're subscribed to.
 ///
-pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
+pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<()>) {
     tracing::info!("Consumer starting...");
 
     let consumer: StreamConsumer = ClientConfig::new()
@@ -57,7 +57,7 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
 
     tracing::info!("Consumer started");
     tracing::debug!("Kafka consumer notifying server it's ready to receive");
-    let _ = tx.send(true).await; // Ignore any send failures - main start-up will timeout anyway.
+    let _ = tx.send(()).await; // Ignore any send failures - main start-up will timeout anyway.
 
     loop {
         match consumer.recv().await {
