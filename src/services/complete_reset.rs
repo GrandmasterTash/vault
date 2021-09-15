@@ -1,6 +1,7 @@
+use serde_json::json;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::{api, common}, model::{password::Password, policy::Policy}, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}}};
+use crate::{db, grpc::{api, common}, model::{events::PasswordResetCompleted, password::Password, policy::Policy}, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::*}};
 
 
 pub async fn complete_reset_password(ctx: &ServiceContext, request: Request<api::CompleteResetRequest>)
@@ -42,6 +43,9 @@ pub async fn complete_reset_password(ctx: &ServiceContext, request: Request<api:
 
     // Update the password in the database.
     let _result = db::password::upsert(&ctx, &password.password_id, &password.password_type, &phc, policy.max_history_length).await?;
+
+    ctx.send(TOPIC_PASSWORD_RESET_COMPLETED,
+        json!(PasswordResetCompleted{ password_id: password.password_id.clone() })).await?;
 
     Ok(Response::new(common::Empty{}))
 }

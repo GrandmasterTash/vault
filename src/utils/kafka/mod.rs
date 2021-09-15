@@ -7,11 +7,16 @@ use super::config::Configuration;
 use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicReplication}, client::DefaultClientContext};
 
 pub mod prelude {
-    pub const TOPIC_FAILURE_EXCEEDED:      &str = "password.failure.exceeded";
-    pub const TOPIC_POLICY_CREATED:        &str = "password.policy.created";
-    pub const TOPIC_POLICY_ACTIVATED:      &str = "password.policy.activated";
-    pub const TOPIC_PASSWORD_TYPE_DELETED: &str = "password.type.deleted";
-    pub const TOPIC_VAULT_HEARTBEAT:       &str = "vault.heartbeat";
+    pub const TOPIC_FAILURE_EXCEEDED:         &str = "password.failure.exceeded";
+    pub const TOPIC_POLICY_CREATED:           &str = "password.policy.created";
+    pub const TOPIC_POLICY_ACTIVATED:         &str = "password.policy.activated";
+    pub const TOPIC_PASSWORD_TYPE_DELETED:    &str = "password.type.deleted";
+    pub const TOPIC_PASSWORD_HASHED:          &str = "password.hashed";
+    pub const TOPIC_PASSWORD_VERIFIED:        &str = "password.verified";
+    pub const TOPIC_PASSWORD_DELETED:         &str = "password.deleted";
+    pub const TOPIC_PASSWORD_RESET_STARTED:   &str = "password.reset.started";
+    pub const TOPIC_PASSWORD_RESET_COMPLETED: &str = "password.reset.completed";
+    pub const TOPIC_VAULT_HEARTBEAT:          &str = "vault.heartbeat";
 }
 
 ///

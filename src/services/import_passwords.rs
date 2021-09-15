@@ -1,9 +1,10 @@
 use std::sync::Arc;
 use futures::StreamExt;
+use serde_json::json;
 use tokio_stream::wrappers::ReceiverStream;
 use api::import_password_request::Password;
 use tonic::{Request, Response, Status, Streaming};
-use crate::{db::{self, prelude::*}, grpc::api, model::algorithm, services::hash_password::hash_and_store_password, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}}};
+use crate::{db::{self, prelude::*}, grpc::api, model::{algorithm, events::PasswordHashed}, services::hash_password::hash_and_store_password, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::TOPIC_PASSWORD_HASHED}};
 
 type ImportPasswordsStream = ReceiverStream<Result<api::ImportPasswordResponse, Status>>;
 
@@ -12,14 +13,13 @@ pub async fn import_passwords(ctx: Arc<ServiceContext>, request: Request<Streami
 
     let mut stream = request.into_inner();
     let (tx, rx) = tokio::sync::mpsc::channel(4);
-    let ctx_clone = ctx.clone();
 
     // Spawn a new thread to read the input stream and write to the output stream.
     tokio::spawn(async move {
         while let Some(request) = stream.next().await {
             match request {
                 Ok(request) => {
-                    match import_internal(&request, ctx_clone.clone()).await {
+                    match import_internal(&request, ctx.clone()).await {
                         Ok(password_id) => {
                             if let Err(err) = tx.send(Ok(good_import_response(&password_id))).await {
                                 tracing::error!("Unable to notify response stream about the import of password_id {}: {:?}", password_id, err);
@@ -73,6 +73,8 @@ async fn import_internal(request: &api::ImportPasswordRequest, ctx: Arc<ServiceC
 
                     // Upsert the password into the database.
                     let _result = db::password::upsert(&ctx, &password_id, &password_type, phc, policy.max_history_length).await?;
+
+                    ctx.send(TOPIC_PASSWORD_HASHED, json!(PasswordHashed { password_id: password_id.clone() })).await?;
 
                     Ok(password_id)
                 },

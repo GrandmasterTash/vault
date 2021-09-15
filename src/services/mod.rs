@@ -77,12 +77,12 @@ impl Vault for Arc<ServiceContext> {
 
     #[instrument(skip(self, request), fields(response.status, remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_password(&self, request: Request<api::DeleteRequest>) -> Result<Response<api::DeleteResponse>, Status> {
-        trace_status(delete_password::delete_password(self, request).await)
+        trace_status(delete_password::delete_password(self.clone(), request).await)
     }
 
     #[instrument(skip(self, request), fields(response.status, remote_addr=?request.remote_addr().unwrap()))]
     async fn delete_passwords(&self, request: Request<Streaming<api::DeleteRequest>>) -> Result<Response<Self::DeletePasswordsStream>, Status>  {
-        trace_status(delete_password::delete_passwords(self, request).await)
+        trace_status(delete_password::delete_passwords(self.clone(), request).await)
     }
 
     #[instrument(skip(self, request), fields(response.status, remote_addr=?request.remote_addr().unwrap()))]

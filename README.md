@@ -1,11 +1,9 @@
-TODO: Add more Kafka notifications.
 TODO: Optimise Tests/Kafka connection.
-TODO: Kafka credentials?
 TODO: Helm chart.
 TODO: Clippy and audit and gutters.
 TODO: Join kafka consumer trace to publish trace?
-
 TODO: Document this file.
+TODO: Dynamic trace level switching api?
 Document this is not an externally facing module and should be called by a sign-on orchistrator.
 Note: Handy https://github.com/bradleyjkemp/grpc-tools
 

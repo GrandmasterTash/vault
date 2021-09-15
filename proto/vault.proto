@@ -14,6 +14,9 @@ package grpc.vault;
  * strong passwords are used, passwords are not re-used, etc. See the Policy message below for full
  * details.
  *
+ * TLS
+ * All Vault apis must be accessed over TLS. The server certificate and key should be placed in the
+ * certs folder, along with the ca cert for the test client.
  *
  * IMPORTANT!
  *

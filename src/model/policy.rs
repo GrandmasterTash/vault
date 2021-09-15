@@ -5,7 +5,7 @@ use crate::db::prelude::*;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use crate::utils::errors::{ErrorCode, VaultError};
-use crate::model::{algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy }};
+use crate::model::algorithm::{Algorithm, pbkdf2::PBKDF2Policy, argon::ArgonPolicy, bcrypt::BCryptPolicy };
 
 use super::algorithm;
 use super::algorithm::argon;
@@ -19,24 +19,6 @@ use super::password::Password;
 pub struct ActivePolicy {
     pub policy: Policy,
     pub activated_on: DateTime<Utc>,
-}
-
-///
-/// A notification sent between instances of Vault to signify the active policy has changed.
-///
-#[derive(Debug, Deserialize, Serialize)]
-pub struct PolicyActivated {
-    pub policy_id: String,
-    pub password_type: String,
-    pub activated_on: DateTime<Utc>,
-}
-
-///
-/// A notification sent between instances of Vault when a password type is removed.
-///
-#[derive(Debug, Deserialize, Serialize)]
-pub struct PasswordTypeDeleted {
-    pub password_type: String
 }
 
 

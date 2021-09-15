@@ -1,5 +1,6 @@
+use serde_json::json;
 use tonic::{Request, Response, Status};
-use crate::{db, db::prelude::*, grpc::api, model::policy::Policy, utils::{self, context::ServiceContext, errors::VaultError}};
+use crate::{db, db::prelude::*, grpc::api, model::{events::PasswordHashed, policy::Policy}, utils::{self, context::ServiceContext, errors::VaultError, kafka::prelude::TOPIC_PASSWORD_HASHED}};
 
 ///
 /// Validate the password against the current password policy.
@@ -53,6 +54,8 @@ pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: 
         ?;
 
     let _result = db::password::upsert(&ctx, &password_id, &password_type, &phc, policy.max_history_length).await?;
+
+    ctx.send(TOPIC_PASSWORD_HASHED, json!(PasswordHashed { password_id: password_id.clone() })).await?;
 
     Ok(password_id)
 }

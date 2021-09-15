@@ -1,6 +1,6 @@
 use serde_json::json;
 use tonic::{Request, Response, Status};
-use crate::{db::{self, prelude::*}, grpc::api, model::policy::PasswordTypeDeleted, utils::{context::ServiceContext, errors::ErrorCode, kafka::prelude::*}};
+use crate::{db::{self, prelude::*}, grpc::api, model::events::PasswordTypeDeleted, utils::{context::ServiceContext, errors::ErrorCode, kafka::prelude::*}};
 
 
 pub async fn delete_password_type(ctx: &ServiceContext, request: Request<api::DeletePasswordTypeRequest>)

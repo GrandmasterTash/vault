@@ -1,36 +1,36 @@
-use mongodb::Database;
+use std::sync::Arc;
+use serde_json::json;
 use futures::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
-use crate::{db, grpc::api, grpc::api::delete_request::DeleteBy, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}}};
+use crate::{db, grpc::api, grpc::api::delete_request::DeleteBy, model::events::PasswordDeleted, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::TOPIC_PASSWORD_DELETED}};
 
 type DeletePasswordsStream = ReceiverStream<Result<api::DeleteResponse, Status>>;
 
 
-pub async fn delete_password(ctx: &ServiceContext, request: Request<api::DeleteRequest>)
+pub async fn delete_password(ctx: Arc<ServiceContext>, request: Request<api::DeleteRequest>)
     -> Result<Response<api::DeleteResponse>, Status> {
 
     let request = request.into_inner();
-
-    let deleted_count = delete_internal(&request, ctx.db().clone()).await?;
+    let deleted_count = delete_internal(&request, ctx).await?;
 
     Ok(Response::new(api::DeleteResponse { deleted_count }))
 }
 
 
-pub async fn delete_passwords(ctx: &ServiceContext, request: Request<Streaming<api::DeleteRequest>>)
+pub async fn delete_passwords(ctx: Arc<ServiceContext>, request: Request<Streaming<api::DeleteRequest>>)
     -> Result<Response<DeletePasswordsStream>, Status>  {
 
     let mut stream = request.into_inner();
     let (tx, rx) = tokio::sync::mpsc::channel(4);
-    let db = ctx.db().clone();
+    let ctx_clone = ctx.clone();
 
-    // Spawn a new thread to read the input stream and write to the output stream.
+    // Spawn a new task to read the input stream and write to the output stream.
     tokio::spawn(async move {
         while let Some(request) = stream.next().await {
             match request {
                 Ok(request) => {
-                    let deleted_count = match delete_internal(&request, db.clone()).await {
+                    let deleted_count = match delete_internal(&request, ctx_clone.clone()).await {
                         Ok(count) => count,
                         Err(err) => {
                             tracing::error!("Failed to delete a password {:?} : {:?}", request, err);
@@ -54,13 +54,36 @@ pub async fn delete_passwords(ctx: &ServiceContext, request: Request<Streaming<a
 }
 
 
-async fn delete_internal(request: &api::DeleteRequest, db: Database) -> Result<u64, VaultError> {
-    Ok(match &request.delete_by {
+async fn delete_internal(request: &api::DeleteRequest, ctx: Arc<ServiceContext>) -> Result<u64, VaultError> {
+
+    let deleted_count = match &request.delete_by {
         Some(delete_by) => match delete_by {
-            DeleteBy::PasswordId(password_id)     => db::password::delete(&password_id, &db).await?,
-            DeleteBy::PasswordType(password_type) => db::password::delete_by_type(&password_type, &db).await?,
+            DeleteBy::PasswordId(password_id) => {
+                let count = db::password::delete(&password_id, ctx.db()).await?;
+
+                ctx.send(TOPIC_PASSWORD_DELETED, json!(PasswordDeleted {
+                    password_id: Some(password_id.clone()),
+                    password_type: None
+                })).await?;
+
+                count
+            },
+
+            DeleteBy::PasswordType(password_type) => {
+                let count = db::password::delete_by_type(&password_type, ctx.db()).await?;
+
+                ctx.send(TOPIC_PASSWORD_DELETED, json!(PasswordDeleted {
+                    password_id: None,
+                    password_type: Some(password_type.clone())
+                })).await?;
+
+                count
+            },
         },
+
         None => return Err(ErrorCode::DeleteByNotSpecified
             .with_msg("The request must specify whether to delete by password_id or password_type")),
-    })
+    };
+
+    Ok(deleted_count)
 }

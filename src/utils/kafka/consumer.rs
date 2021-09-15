@@ -12,7 +12,7 @@ use rdkafka::message::Headers;
 use rdkafka::message::Message;
 use rdkafka::error::KafkaResult;
 use crate::utils::context::ServiceContext;
-use crate::model::policy::{PasswordTypeDeleted, PolicyActivated};
+use crate::model::events::{PasswordTypeDeleted, PolicyActivated};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::{ClientConfig, ClientContext, TopicPartitionList};
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, Rebalance};
@@ -74,14 +74,18 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<bool>) {
         .set("bootstrap.servers", format!("{}", ctx.config().kafka_servers))
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", format!("{}", ctx.config().kafka_timeout + 1000 /* Must be more than the publisher timeout aparently? */))
-        .set("allow.auto.create.topics", "true") // Note: This doesn't work. So we use an admin client to pre-create topics we want to consume.
+        // .set("allow.auto.create.topics", "true") // Note: This doesn't work. So we use an admin client to pre-create topics we want to consume.
         //.set("statistics.interval.ms", "30000")
         .set("auto.offset.reset", "latest")
+        // .set("fetch.max.wait.ms", "500")
         // .set_log_level(rdkafka::config::RDKafkaLogLevel::Debug)
         .create_with_context(CustomContext{tx})
         .expect("Consumer creation failed");
 
+        // TODO: EDIT: assigning partitions myself with Assign instead of Subscribe results in startup time of around 2sec instead
+
     consumer
+        // .assign(assignment)
         .subscribe(&CONSUMER_TOPICS)
         .expect("Can't subscribe to specified topics");
 

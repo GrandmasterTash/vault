@@ -1,6 +1,7 @@
 use rand::Rng;
+use serde_json::json;
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, utils::context::ServiceContext};
+use crate::{db, grpc::api, model::events::PasswordResetStarted, utils::{context::ServiceContext, kafka::prelude::*}};
 
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const RESET_CODE_LEN: usize = 8;
@@ -17,6 +18,9 @@ pub async fn start_reset_password(ctx: &ServiceContext, request: Request<api::St
     // Generate a random reset code, store it on the password with a datetime.
     let reset_code = generate_reset_code();
     db::password::store_reset_code(&password.password_id, &reset_code, ctx).await?;
+
+    ctx.send(TOPIC_PASSWORD_RESET_STARTED,
+        json!(PasswordResetStarted{ password_id: password.password_id.clone() })).await?;
 
     // Return the reset code to the caller.
     Ok(Response::new(api::StartResetResponse{ reset_code }))

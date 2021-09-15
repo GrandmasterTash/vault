@@ -2,7 +2,7 @@ use serde_json::json;
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, grpc::common, model::{algorithm, password::Password, policy::Policy}, utils::{errors::{ErrorCode, VaultError}, kafka::prelude::*}};
+use crate::{db, grpc::api, grpc::common, model::{algorithm, events::{PasswordAttemptsExceeded, PasswordVerified}, password::Password, policy::Policy}, utils::{errors::{ErrorCode, VaultError}, kafka::prelude::*}};
 
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
@@ -39,12 +39,12 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
         db::password::increase_failure_count(ctx, &password).await?;
 
         // Are we over the failure limit? Raise a notification.
-        if password.failure_count.unwrap_or(0) > policy.max_failures {
-            tracing::warn!("Password id {} has exceeded the failure threshold", request.password_id);
+        if password.failure_count.unwrap_or(0) >= policy.max_failures {
+            tracing::debug!("Password id {} has exceeded the failure threshold of {} failures", request.password_id, policy.max_failures);
 
             ctx.send(
                 TOPIC_FAILURE_EXCEEDED,
-                json!({ "password_id": request.password_id.clone() })).await?;
+                json!(PasswordAttemptsExceeded{ password_id: request.password_id.clone() })).await?;
         }
 
         return Err(Status::from(ErrorCode::PasswordNotMatch.with_msg("The passwords did not match")))
@@ -57,6 +57,11 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
 
     // Clear any failure details on the password and stamp the last successful use.
     db::password::record_success(ctx, &password).await?;
+
+    ctx.send(
+        TOPIC_PASSWORD_VERIFIED,
+        json!(PasswordVerified { password_id: password.password_id.clone() })).await?;
+
     Ok(Response::new(common::Empty{}))
 
 }
