@@ -1,5 +1,4 @@
 use std::fs;
-use serde::Serialize;
 use tracing::{debug, info};
 use mongodb::error::ErrorKind;
 use crate::model::config::Config;
@@ -8,7 +7,7 @@ use crate::utils::errors::ErrorCode;
 use crate::db::prelude::*;
 use crate::utils::errors::VaultError;
 use crate::utils::config::Configuration;
-use mongodb::{Client, Database, bson::{self, Document, doc}, options::{ClientOptions, UpdateOptions}};
+use mongodb::{Client, Database, bson::{Document, doc}, options::{ClientOptions, UpdateOptions}};
 
 ///
 /// Run any schema-like updates against MongoDB that haven't been run yet.
@@ -115,27 +114,9 @@ pub async fn get_mongo_db(app_name: &str, config: &Configuration) -> Result<Data
     Ok(db)
 }
 
+
 pub async fn ping(db: &Database) -> Result<Document, VaultError> {
     Ok(db.run_command(doc! { "ping": 1 }, None).await?)
-}
-
-pub trait Persistable<T: Serialize> {
-    ///
-    /// Convert into a MongoDB BSON document.
-    ///
-    fn to_doc(&self) -> Result<Document, VaultError>;
-}
-
-impl<T: Serialize> Persistable<T> for T {
-    fn to_doc(&self) -> Result<Document, VaultError> {
-        let bson = bson::to_bson(self)
-            .map_err(|err| VaultError::new(ErrorCode::InvalidBSON, &format!("Failed to serialise BSON: {}", err)))?;
-
-        match bson.as_document() {
-            Some(doc) => Ok(doc.to_owned()),
-            None => Err(VaultError::new(ErrorCode::InvalidBSON, &format!("Result is empty Document")))
-        }
-    }
 }
 
 

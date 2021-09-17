@@ -4,9 +4,11 @@ mod services;
 pub mod utils;
 
 use db::mongo;
+use rdkafka::producer::Producer;
+use rdkafka::util::Timeout;
+use tokio::signal::unix::{signal, SignalKind};
 use utils::kafka;
 use utils::health;
-use tokio::signal;
 use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
@@ -50,7 +52,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
     dotenv().ok();
 
     // Default log level to INFO if it's not specified.
-    config::default_env("RUST_LOG", "INFO");
+    config::default_env("RUST_LOG", "INFO,librdkafka=OFF,rdkafka=OFF");
 
     // SIGINT/ctrl+c handling for graceful shutdown.
     let (signal_tx, signal_rx) = oneshot::channel();
@@ -85,19 +87,14 @@ pub async fn lib_main() -> Result<(), VaultError> {
         db.clone(),
         active_policies));
 
-    start_and_wait_for_consumer(ctx.clone()).await;
+    kafka::start_and_wait_for_consumer(ctx.clone()).await;
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-    health_reporter
-        .set_serving::<VaultServer<Arc<ServiceContext>>>()
-        .await;
-
+    health_reporter.set_serving::<VaultServer<Arc<ServiceContext>>>().await;
     tokio::spawn(health::monitor(ctx.clone(), health_reporter.clone()));
-
-    // The port we'll serve on.
-    let addr = format!("[::1]:{}", config.port).parse().unwrap();
-
     tracing::info!("Health probe enabled for service grpc.vault.Vault");
+
+    let addr = config.address.parse().expect("Please provide a valid IP address to host the service on");
     tracing::info!("{} listening on {} and using tls", APP_NAME, addr);
 
     let server = Server::builder()
@@ -107,7 +104,9 @@ pub async fn lib_main() -> Result<(), VaultError> {
         .add_service(health_service)
         .serve_with_shutdown(addr, async {
             signal_rx.await.ok();
+
             tracing::info!("Graceful shutdown");
+            ctx.producer().flush(Timeout::After(Duration::from_secs(5)));
         });
 
     server.await?;
@@ -123,7 +122,10 @@ pub async fn lib_main() -> Result<(), VaultError> {
 /// Sends a oneshot signal when a SIGINT is received (Ctrl+C)
 ///
 async fn wait_for_signal(tx: oneshot::Sender<()>) {
-    let _ = signal::ctrl_c().await;
+    // let _ = signal::ctrl_c().await;
+    let mut stream = signal(SignalKind::terminate()).expect("Unix?");
+    let _ = stream.recv().await;
+
     tracing::info!("SIGINT received: shutting down");
     let _ = tx.send(());
 }
@@ -147,35 +149,17 @@ async fn init_tls() -> Result<Identity, VaultError> {
 }
 
 ///
-/// Connect a Kafka consumer and wait for it to be ready to receive messages.
-///
-async fn start_and_wait_for_consumer(ctx: Arc<ServiceContext>) {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-
-    // Spawn a consumer to monitor the active policy changes from other instances.
-    tokio::spawn(async move {
-        kafka::consumer::init_consumer(ctx, tx).await
-    });
-
-    // Wait until the consumer has sent us a signal that it's ready.
-    if let Err(_) = tokio::time::timeout(Duration::from_secs(10), rx.recv()).await {
-        panic!("Timeout waiting for the kafka consumer to signal it was ready.");
-    }
-}
-
-
-///
 /// Initialise tracing and plug-in the Jaeger feature if enabled.
 ///
 fn init_tracing(config: &Configuration) -> bool {
     global::set_text_map_propagator(TraceContextPropagator::new());
 
-    match config.distributed_tracing {
-        true => { // Install the Jaeger pipeline.
+    match &config.jaeger_endpoint {
+        Some(endpoint) => { // Install the Jaeger pipeline.
             let tracer = opentelemetry_jaeger::new_pipeline()
                 .with_service_name(APP_NAME)
                 .with_trace_config(trace::config().with_sampler(Sampler::AlwaysOn))
-                .with_agent_endpoint(config.jaeger_endpoint.clone().unwrap_or_default())
+                .with_agent_endpoint(endpoint)
                 .install_batch(opentelemetry::runtime::Tokio)
                 .expect("Unable to build Jaeger pipeline");
 
@@ -189,7 +173,7 @@ fn init_tracing(config: &Configuration) -> bool {
 
             return true
         },
-        false => {
+        None => {
             if let Err(err) = Registry::default()
                 .with(tracing_subscriber::EnvFilter::from_default_env()) // Set the tracing level to match RUST_LOG env variable.
                 .with(tracing_subscriber::fmt::layer().with_test_writer().with_ansi(true))

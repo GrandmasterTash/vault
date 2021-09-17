@@ -1,8 +1,8 @@
 mod common;
-use chrono::DateTime;
-use tonic::Code;
 use uuid::Uuid;
+use tonic::Code;
 use vault::grpc::api;
+use chrono::{DateTime, Utc};
 use crate::common::{TestConfig, helper, start_vault};
 
 
@@ -15,7 +15,7 @@ async fn test_a_new_password_validates_with_generated_id() {
     helper::make_active_and_wait("DEFAULT", &mut ctx).await;
 
     // Create a new hashed password.
-    let response = helper::hash_password_assert_ok("Hello123!", None, &mut ctx).await;
+    let response = helper::hash_password_assert_ok("Hello123!", None, None, &mut ctx).await;
     let password_id = response.password_id;
     assert_ne!(password_id.len(), 0);
 
@@ -41,7 +41,7 @@ async fn test_a_new_password_validates_with_provided_id() {
     let password_id = Uuid::new_v4().to_hyphenated().to_string();
 
     // Create a new hashed password.
-    let response = helper::hash_password_assert_ok("Hello123!", Some(&password_id), &mut ctx).await;
+    let response = helper::hash_password_assert_ok("Hello123!", Some(&password_id), None, &mut ctx).await;
     assert_eq!(&response.password_id, &password_id);
 
     // Validate the password is okay.
@@ -69,7 +69,7 @@ async fn test_a_password_expires_after_a_period_of_time() {
     helper::set_time("2021-08-23T09:30:00Z", &mut ctx).await;
 
     // Create a new hashed password.
-    let response = helper::hash_password_assert_ok("Hello123!", Some(&password_id), &mut ctx).await;
+    let response = helper::hash_password_assert_ok("Hello123!", Some(&password_id), None, &mut ctx).await;
     assert_eq!(&response.password_id, &password_id);
 
     // Time-travel to > 30 days later.
@@ -83,7 +83,7 @@ async fn test_a_password_expires_after_a_period_of_time() {
 
 
 #[tokio::test]
-async fn test_a_new_password_containg_banned_phrase_is_rejected() {
+async fn test_a_new_password_containing_banned_phrase_is_rejected() {
     // Start the server if needed, and ensure this test has exclusive access.
     let mut ctx = start_vault(TestConfig::default()).await;
 
@@ -112,7 +112,7 @@ async fn test_max_failures_is_enforced() {
     helper::set_time("2021-08-23T09:30:00Z", &mut ctx).await;
 
     // Create a new hashed password.
-    let response = helper::hash_password_assert_ok(GOOD_PWD, None, &mut ctx).await;
+    let response = helper::hash_password_assert_ok(GOOD_PWD, None, None, &mut ctx).await;
     let password_id = response.password_id;
 
     for _ in 0..=3 { /* Repeat 3 times. Why 1..3 couldn't be used is beyond me */
@@ -183,7 +183,7 @@ async fn test_new_policy_can_be_retreived() {
 
     // Active policy is updated with eventual consistency, we'll wait for up to 10 seconds
     // for it to update.
-    let actual_policy = helper::wait_until_active(&policy_id, ctx.client()).await;
+    let actual_policy = helper::wait_until_active(&policy_id, "DEFAULT", ctx.client()).await;
 
     // Are all the fields on the active policy what we specified and expected?
     assert_eq!(actual_policy.policy_id, policy_id);
@@ -219,15 +219,206 @@ async fn test_new_policy_can_be_retreived() {
     };
 }
 
-// #[tokio::test]
-// async fn test_new_policy_enforced_with_new_passwords() {
-//     // Start the server if needed, and ensure this test has exclusive access.
-//     // let mut ctx = start_vault(TestConfig::default()).await;
+#[tokio::test]
+async fn test_new_policy_enforced_with_new_passwords() {
+    // Start the server if needed, and ensure this test has exclusive access.
+    let mut ctx = start_vault(TestConfig::default()).await;
 
-// }
+    // Create a 4-digit PIN policy.
+    let policy = api::NewPolicy {
+        max_history_length: 0,
+        max_age_days: 99999,
+        min_length: 4,
+        max_length: 4,
+        max_character_repeat: 4,
+        min_letters: 0,
+        max_letters: 0,
+        min_numbers: 4,
+        max_numbers: 4,
+        min_symbols: 0,
+        max_symbols: 0,
+        max_failures: 4,
+        lockout_seconds: 100,
+        mixed_case_required: false,
+        reset_timeout_seconds: 30,
+        prohibited_phrases: vec!("1234".to_string(), "0000".to_string()),
+        algorithm: Some(api::new_policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
+            parallelism: 1,
+            tag_length: 16,
+            memory_size_kb: 8,
+            iterations: 1,
+            version: 19,
+            hash_type: 2,
+        })),
+    };
 
-// TODO: Test changing password checks the history limits.
-// TODO: Test the 2-phase reset password.
-// TODO: Test ALL the apis!
+    let response = helper::create_policy_assert_ok(policy.clone(), "PIN", true, &mut ctx).await;
+    let policy_id = response.policy_id;
+    let _ = helper::wait_until_active(&policy_id, "PIN", ctx.client()).await;
+
+    // Create a new hashed pin.
+    let response = helper::hash_password_assert_ok("1122", None, Some("PIN"), &mut ctx).await;
+    let password_id = response.password_id;
+    assert_ne!(password_id.len(), 0);
+
+    // Validate the password is okay.
+    let response = helper::validate_password_assert_ok("1122", &password_id, &mut ctx).await;
+    assert_eq!(response, true);
+
+    // Validate an incorrect password does NOT match it.
+    let status = helper::validate_password_assert_err("1234", &password_id, &mut ctx).await;
+    assert_eq!(status.code(), Code::Unauthenticated);
+    assert_eq!(helper::error_code(status), 2103 /* PasswordNotMatch */);
+}
+
+#[tokio::test]
+async fn test_two_phase_password_reset() {
+    // Start the server if needed, and ensure this test has exclusive access.
+    let mut ctx = start_vault(TestConfig::default()).await;
+
+    // Apply the default policy - other tests may have changed it.
+    helper::make_active_and_wait("DEFAULT", &mut ctx).await;
+
+    // Hash a new password.
+    let response = helper::hash_password_assert_ok("G0nn@r3s3t", None, None, &mut ctx).await;
+    let password_id = response.password_id;
+    assert_ne!(password_id.len(), 0);
+
+    // Get a reset code.
+    let request = api::StartResetRequest { password_id: password_id.clone() };
+    let response = ctx.client().start_reset_password(request).await.unwrap().into_inner();
+    let reset_code = response.reset_code;
+    assert_ne!(reset_code.len(), 0);
+
+    // Complete the reset.
+    let request = api::CompleteResetRequest { password_id: password_id.clone(), reset_code, plain_text_password: "R3s3tP@sword".to_string() };
+    let _response = ctx.client().complete_reset_password(request).await.unwrap().into_inner();
+
+    // Ensure the new password is valid.
+    let response = helper::validate_password_assert_ok("R3s3tP@sword", &password_id, &mut ctx).await;
+    assert_eq!(response, true);
+
+    // Ensure the old password is not valid.
+    let status = helper::validate_password_assert_err("G0nn@r3s3t", &password_id, &mut ctx).await;
+    assert_eq!(status.code(), Code::Unauthenticated);
+    assert_eq!(helper::error_code(status), 2103 /* PasswordNotMatch */);
+}
+
+#[tokio::test]
+async fn test_delete_password_by_id() {
+    // Start the server if needed, and ensure this test has exclusive access.
+    let mut ctx = start_vault(TestConfig::default()).await;
+
+    // Apply the default policy - other tests may have changed it.
+    helper::make_active_and_wait("DEFAULT", &mut ctx).await;
+
+    // Hash two new passwords.
+    let response = helper::hash_password_assert_ok("D3l3teM@", None, None, &mut ctx).await;
+    let password_1_id = response.password_id;
+    assert_ne!(password_1_id.len(), 0);
+
+    let response = helper::hash_password_assert_ok("D0ntD3l3teM@", None, None, &mut ctx).await;
+    let password_2_id = response.password_id;
+    assert_ne!(password_2_id.len(), 0);
+
+    // Delete password 1 by id.
+    let request = api::DeleteRequest { delete_by: Some(api::delete_request::DeleteBy::PasswordId(password_1_id.clone())) };
+    let response = ctx.client().delete_password(request).await.unwrap().into_inner();
+    assert_eq!(response.deleted_count, 1);
+
+    // Ensure it's deleted.
+    let status = helper::validate_password_assert_err("D3l3teM@", &password_1_id, &mut ctx).await;
+    assert_eq!(status.code(), Code::Unauthenticated);
+    assert_eq!(helper::error_code(status), 2101 /* PasswordNotFound */);
+
+    // Ensure the other password is not deleted.
+    let response = helper::validate_password_assert_ok("D0ntD3l3teM@", &password_2_id, &mut ctx).await;
+    assert_eq!(response, true);
+}
+
+#[tokio::test]
+async fn test_delete_passwords_by_type() {
+    // Start the server if needed, and ensure this test has exclusive access.
+    let mut ctx = start_vault(TestConfig::default()).await;
+
+    // Generate a unique password_type.
+    let password_type = format!("type_{}", Utc::now().timestamp_millis());
+
+    let response = helper::create_policy_assert_ok(helper::sensible_policy(), &password_type, true, &mut ctx).await;
+    let policy_id = response.policy_id;
+    let _ = helper::wait_until_active(&policy_id, &password_type, ctx.client()).await;
+
+    // Hash two new passwords.
+    let response = helper::hash_password_assert_ok("D3l3teM@", None, Some(&password_type), &mut ctx).await;
+    let password_1_id = response.password_id;
+    assert_ne!(password_1_id.len(), 0);
+
+    let response = helper::hash_password_assert_ok("D0ntD3l3teM@", None, Some(&password_type), &mut ctx).await;
+    let password_2_id = response.password_id;
+    assert_ne!(password_2_id.len(), 0);
+
+    // Delete all passwords by password type.
+    let request = api::DeleteRequest { delete_by: Some(api::delete_request::DeleteBy::PasswordType(password_type.clone())) };
+    let response = ctx.client().delete_password(request).await.unwrap().into_inner();
+    assert_eq!(response.deleted_count, 2);
+
+    // Ensure one of them is deleted.
+    let status = helper::validate_password_assert_err("D3l3teM@", &password_1_id, &mut ctx).await;
+    assert_eq!(status.code(), Code::Unauthenticated);
+    assert_eq!(helper::error_code(status), 2101 /* PasswordNotFound */);
+}
+
+#[tokio::test]
+async fn test_delete_password_type() {
+    // Start the server if needed, and ensure this test has exclusive access.
+    let mut ctx = start_vault(TestConfig::default()).await;
+
+    // Generate a unique password_type.
+    let password_type = format!("type_{}", Utc::now().timestamp_millis());
+
+    let response = helper::create_policy_assert_ok(helper::sensible_policy(), &password_type, true, &mut ctx).await;
+    let policy_id = response.policy_id;
+    let _ = helper::wait_until_active(&policy_id, &password_type, ctx.client()).await;
+
+    // Hash two new passwords.
+    let response = helper::hash_password_assert_ok("D3l3teM@", None, Some(&password_type), &mut ctx).await;
+    let password_1_id = response.password_id;
+    assert_ne!(password_1_id.len(), 0);
+
+    let response = helper::hash_password_assert_ok("D0ntD3l3teM@", None, Some(&password_type), &mut ctx).await;
+    let password_2_id = response.password_id;
+    assert_ne!(password_2_id.len(), 0);
+
+    // Delete password type (configuration and passwords).
+    let request = api::DeletePasswordTypeRequest { password_type };
+    let response = ctx.client().delete_password_type(request).await.unwrap().into_inner();
+    assert_eq!(response.deleted_count, 2); // Number of passwords with the type.
+
+    // Ensure one of them is deleted.
+    let status = helper::validate_password_assert_err("D3l3teM@", &password_1_id, &mut ctx).await;
+    assert_eq!(status.code(), Code::Unauthenticated);
+    assert_eq!(helper::error_code(status), 2101 /* PasswordNotFound */);
+}
+
+#[tokio::test]
+async fn test_delete_default_password_type_is_prohibited() {
+    // Start the server if needed, and ensure this test has exclusive access.
+    let mut ctx = start_vault(TestConfig::default()).await;
+
+    let request = api::DeletePasswordTypeRequest { password_type: "DEFAULT".to_string() };
+    let status = ctx.client().delete_password_type(request).await.err().unwrap();
+    assert_eq!(status.code(), Code::InvalidArgument);
+    assert_eq!(helper::error_code(status), 2401 /* CannotRemoveDefault */);
+
+}
+
+
+// TODO: Test get policies.
+
+// TODO: Test get active policy.
+
+// TODO: Test get password types.
+
+// TODO: Test the validation checks in create policy api handler.
 
 

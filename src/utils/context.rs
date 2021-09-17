@@ -107,4 +107,8 @@ impl ServiceContext {
         &self.config
     }
 
+    pub fn producer(&self) -> &FutureProducer {
+        &self.producer
+    }
+
 }

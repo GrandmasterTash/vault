@@ -2,8 +2,8 @@ pub mod consumer;
 pub mod producer;
 
 use serde::Serialize;
-use std::time::Duration;
-use super::config::Configuration;
+use std::{sync::Arc, time::Duration};
+use super::{config::Configuration, context::ServiceContext};
 use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicReplication}, client::DefaultClientContext};
 
 pub mod prelude {
@@ -51,4 +51,21 @@ fn create_admin_client(config: &Configuration) -> AdminClient<DefaultClientConte
         .set("bootstrap.servers", format!("{}", config.kafka_servers))
         .create()
         .expect("admin client creation failed")
+}
+
+///
+/// Connect a Kafka consumer and wait for it to be ready to receive messages.
+///
+pub async fn start_and_wait_for_consumer(ctx: Arc<ServiceContext>) {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+    // Spawn a consumer to monitor the active policy changes from other instances.
+    tokio::spawn(async move {
+        consumer::init_consumer(ctx, tx).await
+    });
+
+    // Wait until the consumer has sent us a signal that it's ready.
+    if let Err(_) = tokio::time::timeout(Duration::from_secs(10), rx.recv()).await {
+        panic!("Timeout waiting for the kafka consumer to signal it was ready.");
+    }
 }

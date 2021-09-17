@@ -11,8 +11,8 @@ package grpc.vault;
  * \_| |_/\_|    \___/  |___/ \___/ \___|___/
  *
  * The Vault service safely stores and validates passwords. Password policies can be defined to ensure
- * strong passwords are used, passwords are not re-used, etc. See the Policy message below for full
- * details.
+ * strong passwords are used and old passwords are not re-used, etc. See the Policy message below for
+ * full details.
  *
  * TLS
  * All Vault apis must be accessed over TLS. The server certificate and key should be placed in the
@@ -20,10 +20,10 @@ package grpc.vault;
  *
  * IMPORTANT!
  *
- * Vault apis are not designed to be called directly from any user-public endpoint. They are intended
- * to be called from authentication orchistration services, which themselves, may be invoked directly
- * from the end-users. Because of this, you can take measures to ensure Vault is never deployed as an
- * edge service in your platform.
+ * Vault apis are not designed to be called directly from any user-facing public endpoint. They are
+ * intended to be called from authentication orchistration services, which themselves, may be invoked
+ * directly from the end-users. Because of this, you should ensure Vault is never deployed as an edge
+ * service in your platform.
  *
  *
  * PASSWORD TYPES
@@ -45,15 +45,15 @@ package grpc.vault;
  * only applied when a new password is specified, they are not checked when the password is validated
  * (although rules about password expiry are checked at validation time).
  *
- * Making a new policy active is an async operation with eventual consistency. So may take a few
+ * Making a new policy active is an async operation with eventual consistency so may take a few
  * momements to complete. This is done via Kafka notifications and this allows Vault to be scaled
  * horizontally whilst ensuring all instances are using the same active polcies.
  *
  *
  * HASHING
  *
- * The currently supported hashing algorthims are subsets of BCrypt, PBKDF2 and Argon. See the definitions
- * below for details.
+ * The currently supported hashing algorthims are subsets of BCrypt, PBKDF2 and Argon. See the
+ * definitions below for details.
  *
  * Passwords are hashed and stored as a PHC string, so if changes are made to policies or the current
  * hashing algorithm (for example anually incrementing the cost factor to compensate for more powerful
@@ -66,7 +66,7 @@ package grpc.vault;
  * When a password is hashed it can either be given a password_id by the caller or allowed to generate
  * and return a password_id to the caller. In the latter case, the caller must then store this password_id
  * in some form of account management system. password_ids must be provided when the password needs
- * to be validated against a user-supplied value.
+ * to be validated along with a user-supplied plain text password.
  *
  *
  * ERRORS

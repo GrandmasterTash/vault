@@ -114,7 +114,7 @@ impl TestConfig {
 
 
 ///
-/// Acquires a lock so only one test may run at a time and returns a TestContext.
+/// Acquires a lock so only one test may run at a time and returns a TestContext(Lock).
 ///
 /// Ensures the vault server is started with the specified configuration.
 ///
@@ -150,9 +150,6 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
         let opts = AdminOptions::new().operation_timeout(Some(Duration::from_millis(5000)));
         internal_client.delete_topics(&CONSUMER_TOPICS, &opts).await.expect("Unable to delete topics");
 
-        // TODO: Connect to the MongoDB and drop any existing database to ensure we start with
-        // clean data.
-
         // Launch the application in a separate runtime instance. This ensures it will survive test thread
         // teardowns. Because each thread runs in it's own green thread with a runtime with no worker threads,
         // we need to ensure the launched server survives a tear-down.
@@ -162,21 +159,12 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
                 vault::lib_main().await
             });
         }));
-
-    } else {
-        // TODO: If the server was running, reset any fixed clock that a previous test may have applied.
-        // lock.admin().reset_time(Request::new(common::Empty::default()))
-        //     .await
-        //     .unwrap();
     }
-
-    // TODO: Refactor so client not created every test. Consider holding in the other runtime.
 
     // Connect a test client to the service - the closure is used in retry spawn below.
     let port = ctx.config.get("PORT");
     let connect = move || {
         connect_channel(port)
-        // VaultClient::connect(format!("http://[::]:{}", port))
     };
 
     // Try to connect for up-to 1 minute.
@@ -188,7 +176,6 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
     // Need to establish an admin client too.
     let connect = move || {
         connect_channel(port)
-        // InternalClient::connect(format!("http://[::]:{}", port))
     };
 
     // Try to connect for up-to 1 minute.
@@ -259,14 +246,14 @@ pub mod helper {
     ///
     /// Test helper to call the hash password API when the response is expected to be success.
     ///
-    pub async fn hash_password_assert_ok(plain_text_password: &str, password_id: Option<&str>, ctx: &mut TestContextLock<'_>)
+    pub async fn hash_password_assert_ok(plain_text_password: &str, password_id: Option<&str>, password_type: Option<&str>, ctx: &mut TestContextLock<'_>)
         -> api::HashResponse {
 
         ctx.client()
             .hash_password(Request::new(api::HashRequest {
                 plain_text_password: plain_text_password.to_string(),
                 password_id: password_id.map(|s|s.to_string()),
-                password_type: None,
+                password_type: password_type.map(|s|s.to_string()),
             }))
             .await
             .unwrap() // This is the effective assert.
@@ -374,7 +361,7 @@ pub mod helper {
             .await
             .unwrap(); // This is the effective assert.
 
-        wait_until_active(policy_id, ctx.client()).await;
+        wait_until_active(policy_id, "DEFAULT", ctx.client()).await;
     }
 
 
@@ -382,12 +369,12 @@ pub mod helper {
     /// Wait until the policy_id specified is the active policy (activating a policy has eventual
     /// consistency) and return the policy from the API call.
     ///
-    pub async fn wait_until_active(policy_id: &str, client: &mut VaultClient<tonic::transport::Channel>)
+    pub async fn wait_until_active(policy_id: &str, password_type: &str, client: &mut VaultClient<tonic::transport::Channel>)
         -> api::Policy {
 
         let action_client = client.clone();
         let action = move || {
-            get_active_policy_assert_id(policy_id.to_string(), action_client.clone())
+            get_active_policy_assert_id(Some(password_type.to_string()), policy_id.to_string(), action_client.clone())
         };
 
         // Wait for up to 10 seconds for the active policy to be changed. Probing ever 100ms.
@@ -397,11 +384,11 @@ pub mod helper {
     }
 
 
-    async fn get_active_policy_assert_id(expected_id: String, mut client: VaultClient<tonic::transport::Channel>) 
+    async fn get_active_policy_assert_id(password_type: Option<String>, expected_id: String, mut client: VaultClient<tonic::transport::Channel>) 
         -> Result<api::Policy, ()> {
 
         let request = tonic::Request::new(vault::grpc::api::GetActivePolicyRequest{
-            password_type: None,
+            password_type,
         });
 
         let actual = client.get_active_policy(request)
@@ -417,6 +404,38 @@ pub mod helper {
                 // println!("Waiting till {} active, current active is {}...", expected_id, actual.policy_id);
                 Err(())
             },
+        }
+    }
+
+    ///
+    /// Helper so tests can create and use a password policy that's not the default (although similar).
+    ///
+    pub fn sensible_policy() -> api::NewPolicy {
+        api::NewPolicy {
+            max_history_length: 3,
+            max_age_days: 30,
+            min_length: 5,
+            max_length: 32,
+            max_character_repeat: 4,
+            min_letters: 2,
+            max_letters: 32,
+            min_numbers: 2,
+            max_numbers: 32,
+            min_symbols: 1,
+            max_symbols: 32,
+            max_failures: 3,
+            lockout_seconds: 100,
+            mixed_case_required: true,
+            reset_timeout_seconds: 30,
+            prohibited_phrases: vec!("password".to_string()),
+            algorithm: Some(api::new_policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
+                parallelism: 1,
+                tag_length: 16,
+                memory_size_kb: 8,
+                iterations: 1,
+                version: 19,
+                hash_type: 2,
+            })),
         }
     }
 }

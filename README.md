@@ -1,8 +1,12 @@
+TODO: Integration tests should use a snapshot of the protobuf api NOT the latest generated version.
+https://github.com/hyperium/tonic/tree/master/tonic-build
+
 TODO: Helm chart.
 TODO: Clippy and audit and gutters.
-TODO: Join kafka consumer trace to publish trace?
+TODO: Distributed tracing context propagation across Kafka messages.
 TODO: Document this file.
 TODO: Dynamic trace level switching api?
+TODO: AB testing?
 Document this is not an externally facing module and should be called by a sign-on orchistrator.
 Note: Handy https://github.com/bradleyjkemp/grpc-tools
 
@@ -10,6 +14,16 @@ Note: Handy https://github.com/bradleyjkemp/grpc-tools
 See vault.proto for API documentation.
 
 
+Integration Tests
+-----------------
+
+Need docker-compose up
+Use copy of exported API clients - to catch breaking changes.
+
+Coverage
+--------
+
+cargo tarpaulin --ignore-tests --out Lcov
 
 Pepper
 ------

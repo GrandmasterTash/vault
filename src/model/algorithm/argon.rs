@@ -61,7 +61,7 @@ pub fn hash_into_phc(argon: &ArgonPolicy, plain_text_password: &str) -> Result<S
 /// Read the secret pepper from a file - this is a blocking operation.
 ///
 fn pepper() -> Result<String, VaultError> {
-    fs::read_to_string("secrets/pepper/pepper")
+    fs::read_to_string("secrets/pepper")
         .map_err(|err| VaultError::new(ErrorCode::SecretFileMissing, &format!("Unable to read secret: {}", err)))
 }
 

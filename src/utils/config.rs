@@ -9,14 +9,13 @@ use super::errors::VaultError;
 ///
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Configuration {
-    pub port: i32,                       // The port to run this service on.
-    pub kafka_servers: String,           // The Kafka brokers.
-    pub kafka_timeout: i32,              // The Kafka message timeout in ms.
-    pub db_name: String,                 // The MongoDB name to use.
-    pub mongo_uri: String,               // The MongoDB connection URI. If a credentials file is used, $USERNAME, $PASSWORD should be used in the uri as placeholders.
+    pub address: String,                   // The address and port to host the server on.
+    pub kafka_servers: String,             // The Kafka brokers.
+    pub kafka_timeout: i32,                // The Kafka message timeout in ms.
+    pub db_name: String,                   // The MongoDB name to use.
+    pub mongo_uri: String,                 // The MongoDB connection URI. If a credentials file is used, $USERNAME, $PASSWORD should be used in the uri as placeholders.
     pub mongo_credentials: Option<String>, // The path to the credentials file for MongoDB - None means use URI as-is.
-    pub jaeger_endpoint: Option<String>, // If jaeger tracing is enabled, this is the endpoint to send traces to.
-    pub distributed_tracing: bool,       // Send traces to Jaeger.
+    pub jaeger_endpoint: Option<String>,   // If this is the jaeger endpoint to send traces to.
 }
 
 impl Configuration {
@@ -30,20 +29,15 @@ impl Configuration {
         cfg.merge(config::Environment::new())?;
 
         // Set defaults for settings that were not specified.
-        cfg.set_default("port", 50011)?;
+        cfg.set_default("address", "0.0.0.0:50011")?;
         cfg.set_default("kafka_servers", "localhost:29092")?;
         cfg.set_default("kafka_timeout", 5000)?;
         cfg.set_default("db_name", "Vault")?;
         cfg.set_default("mongo_credentials", None::<String>)?;
         cfg.set_default("mongo_uri", "mongodb://admin:changeme@localhost:27017")?;
-        cfg.set_default("distributed_tracing", false)?;
         cfg.set_default("jaeger_endpoint", None::<String>)?;
 
         let config: Configuration = cfg.try_into()?;
-
-        if config.distributed_tracing && config.jaeger_endpoint.is_none() {
-            panic!("Distributed tracing is enabled but no Jaeger endpoint is configured.");
-        }
 
         Ok(config)
     }
