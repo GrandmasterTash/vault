@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "vault.fullname" . }}
+  name: {{ .Chart.Name }}
   labels:
     {{- include "vault.labels" . | nindent 4 }}
 spec:

@@ -1,13 +1,8 @@
-TODO: Helm chart.
- kafka.default.svc.cluster.local 9092
- mongodb.default.svc.cluster.local
-
-TODO: Liveliness should use own probe not readiness
 TODO: MongoDB tls.
-TODO: Clippy and audit and gutters.
-TODO: Distributed tracing context propagation across Kafka messages.
-TODO: Document this file.
 TODO: Dynamic trace level switching api?
+TODO: Clippy and audit and gutters.
+TODO: Document this file.
+TODO: Distributed tracing context propagation across Kafka messages.
 TODO: AB testing?
 Document this is not an externally facing module and should be called by a sign-on orchistrator.
 Note: Handy https://github.com/bradleyjkemp/grpc-tools

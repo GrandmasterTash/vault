@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "vault.fullname" . }}
+  name: {{ .Chart.Name }}
   labels:
     {{- include "vault.labels" . | nindent 4 }}
 spec:
@@ -13,40 +13,26 @@ spec:
       {{- include "vault.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       labels:
         {{- include "vault.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      serviceAccountName: {{ include "vault.serviceAccountName" . }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      serviceAccountName: {{ .Chart.Name }}
       containers:
         - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          # image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          image: "vault:latest"
+          image: "{{ .Values.image.name }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-          # TODO: use app-specific mongodb account.
           - name: MONGO_URI
-            value: "mongodb://$USERNAME:$PASSWORD@mongodb.default.svc.cluster.local:27017"
+            value: "{{ .Values.mongo.uri }}"
           - name: KAFKA_SERVERS
-            value: "kafka.default.svc.cluster.local:9092"
+            value: "{{ .Values.kafka.servers }}"
           ports:
             - name: grpc
-              containerPort: 50011
+              containerPort: {{ .Values.service.port }}
               protocol: TCP
           readinessProbe:
             exec:
-              command: ["/grpc_health_probe", "-addr=:50011", "-tls", "-tls-no-verify", "-service=READINESS"]
+              command: ["/grpc_health_probe", "-addr=:{{ .Values.service.port }}", "-tls", "-tls-no-verify", "-service=READINESS"]
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 5
@@ -54,7 +40,7 @@ spec:
             successThreshold: 1
           livenessProbe:
             exec:
-              command: ["/grpc_health_probe", "-addr=:50011", "-tls", "-tls-no-verify", "-service=LIVELINESS"]
+              command: ["/grpc_health_probe", "-addr=:{{ .Values.service.port }}", "-tls", "-tls-no-verify", "-service=LIVELINESS"]
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
