@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vault.fullname" . }}
+  labels:
+    {{- include "vault.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "vault.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "vault.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "vault.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          # image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "vault:latest"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          # TODO: use app-specific mongodb account.
+          - name: MONGO_URI
+            value: "mongodb://$USERNAME:$PASSWORD@mongodb.default.svc.cluster.local:27017"
+          - name: KAFKA_SERVERS
+            value: "kafka.default.svc.cluster.local:9092"
+          ports:
+            - name: grpc
+              containerPort: 50011
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["/grpc_health_probe", "-addr=:50011", "-tls", "-tls-no-verify", "-service=READINESS"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 1
+            successThreshold: 1
+          livenessProbe:
+            exec:
+              command: ["/grpc_health_probe", "-addr=:50011", "-tls", "-tls-no-verify", "-service=LIVELINESS"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+          - name: certs
+            mountPath: "/certs"
+            readOnly: true
+          - name: secrets
+            mountPath: "/secrets"
+            readOnly: true
+      volumes:
+      - name: certs
+        secret:
+          secretName: vault-tls
+          items:
+          # produces /certs/cert.pem in the container.
+          - key: tls.crt
+            path: cert.pem
+          # produces /certs/key.pem in the container.
+          - key: tls.key
+            path: key.pem
+      - name: secrets
+        secret:
+          secretName: vault-secrets
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

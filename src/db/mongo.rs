@@ -1,10 +1,10 @@
 use std::fs;
-use tracing::{debug, info};
+use tracing::info;
+use crate::db::prelude::*;
 use mongodb::error::ErrorKind;
 use crate::model::config::Config;
 use crate::model::policy::Policy;
 use crate::utils::errors::ErrorCode;
-use crate::db::prelude::*;
 use crate::utils::errors::VaultError;
 use crate::utils::config::Configuration;
 use mongodb::{Client, Database, bson::{Document, doc}, options::{ClientOptions, UpdateOptions}};
@@ -82,19 +82,16 @@ async fn create_default_config(db: &Database) -> Result<(), VaultError> {
 
 pub async fn get_mongo_db(app_name: &str, config: &Configuration) -> Result<Database, VaultError> {
 
-    let uri = match &config.mongo_credentials {
-        Some(filename) => {
-            debug!("Loading MongoDB credentials from secrets file {}", filename);
+    // Read username and password from a secrets file.
+    let username = fs::read_to_string("secrets/mongodb_username")
+        .map_err(|err| ErrorCode::UnableToReadCredentials
+            .with_msg(&format!("Unable to read credentials from secrets/mongodb_username: {}", err)))?;
 
-            // Read username and password from a secrets file.
-            let credentials = fs::read_to_string(filename)
-                .map_err(|err| VaultError::new(ErrorCode::UnableToReadCredentials, &format!("Unable to read credentials from {}: {}", filename, err)))?;
-            let mut credentials = credentials.lines();
-            let uri = config.mongo_uri.replace("$USERNAME", credentials.next().unwrap_or_default());
-            uri.replace("$PASSWORD", credentials.next().unwrap_or_default())
-        },
-        None => config.mongo_uri.clone(),
-    };
+    let password = fs::read_to_string("secrets/mongodb_password")
+        .map_err(|err| ErrorCode::UnableToReadCredentials
+            .with_msg(&format!("Unable to read credentials from secrets/mongodb_password: {}", err)))?;
+
+    let uri = config.mongo_uri.replace("$USERNAME", &username).replace("$PASSWORD", &password);
 
     // Parse the uri now.
     let mut client_options = ClientOptions::parse(&uri).await?;

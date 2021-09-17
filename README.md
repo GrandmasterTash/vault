@@ -1,7 +1,9 @@
-TODO: Integration tests should use a snapshot of the protobuf api NOT the latest generated version.
-https://github.com/hyperium/tonic/tree/master/tonic-build
-
 TODO: Helm chart.
+ kafka.default.svc.cluster.local 9092
+ mongodb.default.svc.cluster.local
+
+TODO: Liveliness should use own probe not readiness
+TODO: MongoDB tls.
 TODO: Clippy and audit and gutters.
 TODO: Distributed tracing context propagation across Kafka messages.
 TODO: Document this file.
@@ -12,6 +14,21 @@ Note: Handy https://github.com/bradleyjkemp/grpc-tools
 
 
 See vault.proto for API documentation.
+
+
+Kubernetes
+-----------
+
+- cd <vault project root>
+
+SECRETS!!!! https://kubernetes.io/docs/concepts/configuration/secret/
+
+kubectl create secret tls vault-tls --cert=certs/cert.pem --key=certs/key.pem
+kubectl create secret generic vault-secrets --from-literal=pepper=supersecret --from-literal=mongodb_username=root --from-literal=mongodb_password=changeme
+
+Health probes in k8s
+--------------------
+https://github.com/grpc-ecosystem/grpc-health-probe/tree/1329d682b4232c102600b5e7886df8ffdcaf9e26#example-grpc-health-checking-on-kubernetes
 
 
 Integration Tests
@@ -27,8 +44,6 @@ cargo tarpaulin --ignore-tests --out Lcov
 
 Pepper
 ------
-
-
 
 Healthcheck
 

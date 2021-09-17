@@ -1,10 +1,10 @@
-use rdkafka::admin::{AdminClient as KafkaAdminClient, AdminOptions};
 use lazy_static::lazy_static;
-use rdkafka::{ClientConfig, client::DefaultClientContext};
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Uri};
 use tokio_retry::{Retry, strategy::FixedInterval};
-use std::{collections::HashMap, thread::JoinHandle, time::Duration};
 use parking_lot::{Mutex, RawMutex, lock_api::MutexGuard};
+use rdkafka::{ClientConfig, client::DefaultClientContext};
+use rdkafka::admin::{AdminClient as KafkaAdminClient, AdminOptions};
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Uri};
+use std::{collections::HashMap, thread::JoinHandle, time::Duration};
 use vault::{grpc::{internal::internal_client::InternalClient, api::vault_client::VaultClient}, utils::kafka::consumer::CONSUMER_TOPICS};
 
 lazy_static! {

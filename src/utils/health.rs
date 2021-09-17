@@ -2,12 +2,13 @@ use serde_json::json;
 use parking_lot::Mutex;
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
-use tonic_health::server::HealthReporter;
+use crate::{db::mongo, utils::kafka::Heartbeat};
 use super::{context::ServiceContext, kafka::prelude::*};
 use std::{sync::Arc, thread::JoinHandle as StdJoinHandle, time::Duration};
-use crate::{db::mongo, grpc::api::vault_server::VaultServer, utils::kafka::Heartbeat};
+use tonic_health::{server::HealthReporter, proto::health_server::{Health, HealthServer}};
 
-type VaultService = VaultServer<Arc<ServiceContext>>;
+const LIVELINESS: &str = "LIVELINESS";
+const READINESS:  &str = "READINESS";
 
 const PULSE: u64 = 4000;
 const TIMEOUT: u64 = 6000;
@@ -26,16 +27,34 @@ lazy_static! {
         .unwrap();
 }
 
+///
+/// Create a readiness monitor to response to readiness probes.
+///
+/// If downstream connection issues are detected it will return NOT_SERVING.
+///
+pub async fn start(ctx: Arc<ServiceContext>) -> (HealthReporter, HealthServer<impl Health>) {
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter.set_service_status(LIVELINESS, tonic_health::ServingStatus::Serving).await;
+    health_reporter.set_service_status(READINESS, tonic_health::ServingStatus::Serving).await;
+
+    tokio::spawn(monitor(ctx.clone(), health_reporter.clone()));
+    tracing::info!("Health probe enabled for services {} and {}", LIVELINESS, READINESS);
+    (health_reporter, health_service)
+}
+
+pub async fn shutdown(mut health_reporter: HealthReporter) {
+    health_reporter.set_service_status(LIVELINESS, tonic_health::ServingStatus::NotServing).await;
+    health_reporter.set_service_status(READINESS, tonic_health::ServingStatus::NotServing).await;
+}
 
 ///
 /// Monitor the Kafka and MongoDB services and flip our health if they become un-contactable.
 ///
-pub async fn monitor(ctx: Arc<ServiceContext>, mut reporter: HealthReporter) {
+async fn monitor(ctx: Arc<ServiceContext>, mut reporter: HealthReporter) {
 
     // Track individually - so even if one is down, if the other goes down, we'll log.
     let mut mongo = true;
     let mut kafka = true;
-    reporter.set_serving::<VaultService>().await;
 
     let _kafka_handle = start_kafka_heartbeat(ctx.clone());
     let _mongo_handle = start_mongo_heartbeat(ctx.clone());
@@ -51,11 +70,11 @@ pub async fn monitor(ctx: Arc<ServiceContext>, mut reporter: HealthReporter) {
         if (new_kafka != kafka) || (new_mongo != mongo) {
             if health {
                 tracing::info!("Service healthy (Kafka {}, MongoDB {})", new_kafka, new_mongo);
-                reporter.set_serving::<VaultService>().await;
+                reporter.set_service_status(READINESS, tonic_health::ServingStatus::Serving).await;
 
             } else {
                 tracing::error!("Service NOT healthy (Kafka {}, MongoDB {})", new_kafka, new_mongo);
-                reporter.set_not_serving::<VaultService>().await;
+                reporter.set_service_status(READINESS, tonic_health::ServingStatus::NotServing).await;
             }
         }
 

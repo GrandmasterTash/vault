@@ -28,9 +28,17 @@ COPY ./proto ./proto
 COPY ./build.rs ./build.rs
 RUN cargo build --release --bin vault
 
+# Copy a grpc probe - this version let's us specify a service name so we can probe readiness and liveliness.
+RUN GRPC_HEALTH_PROBE_VERSION=v0.3.1 && \
+    wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
+
 # The final image.
 FROM gcr.io/distroless/cc-debian10 AS runtime
+# Use this to debug.
+# FROM debian as runtime
 WORKDIR /
 COPY --from=builder /lib/x86_64-linux-gnu/libz.so.1 /lib/x86_64-linux-gnu/libz.so.1
 COPY --from=builder /vault/target/release/vault .
-CMD ["./vault"]
+COPY --from=builder /bin/grpc_health_probe .
+CMD ["/vault"]

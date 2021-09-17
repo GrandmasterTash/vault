@@ -21,7 +21,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::grpc::internal::internal_server::Internal;
 use tonic::{Code, Request, Response, Status, Streaming};
 
-
 ///
 /// Implemention for all the gRPC service endpoints defined in the vault.proto file.
 ///

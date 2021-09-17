@@ -4,20 +4,20 @@ mod services;
 pub mod utils;
 
 use db::mongo;
-use rdkafka::producer::Producer;
-use rdkafka::util::Timeout;
-use tokio::signal::unix::{signal, SignalKind};
 use utils::kafka;
 use utils::health;
 use dotenv::dotenv;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::oneshot;
+use rdkafka::util::Timeout;
 use utils::errors::VaultError;
+use rdkafka::producer::Producer;
 use utils::context::ServiceContext;
 use crate::utils::errors::ErrorCode;
 use utils::config::{Configuration, self};
 use grpc::api::vault_server::VaultServer;
-use tokio::sync::oneshot::{self};
+use tokio::signal::unix::{signal, SignalKind};
 use grpc::internal::internal_server::InternalServer;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 use opentelemetry::{global, sdk::{propagation::TraceContextPropagator,trace,trace::Sampler}};
@@ -89,10 +89,8 @@ pub async fn lib_main() -> Result<(), VaultError> {
 
     kafka::start_and_wait_for_consumer(ctx.clone()).await;
 
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-    health_reporter.set_serving::<VaultServer<Arc<ServiceContext>>>().await;
-    tokio::spawn(health::monitor(ctx.clone(), health_reporter.clone()));
-    tracing::info!("Health probe enabled for service grpc.vault.Vault");
+    // Create a readiness and liveliness service.
+    let (health_reporter, health_service) = health::start(ctx.clone()).await;
 
     let addr = config.address.parse().expect("Please provide a valid IP address to host the service on");
     tracing::info!("{} listening on {} and using tls", APP_NAME, addr);
@@ -106,6 +104,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
             signal_rx.await.ok();
 
             tracing::info!("Graceful shutdown");
+            health::shutdown(health_reporter).await;
             ctx.producer().flush(Timeout::After(Duration::from_secs(5)));
         });
 
@@ -117,6 +116,17 @@ pub async fn lib_main() -> Result<(), VaultError> {
 
     Ok(())
 }
+
+// ///
+// /// Simply return that we're running and alive.
+// ///
+// async fn liveliness_service() -> (HealthReporter, HealthServer<impl Health>) {
+//     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+//     health_reporter
+//         .set_serving::<LivelinessServer<Arc<ServiceContext>>>()
+//         .await;
+//     (health_reporter, health_service)
+// }
 
 ///
 /// Sends a oneshot signal when a SIGINT is received (Ctrl+C)
