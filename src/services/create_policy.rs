@@ -1,5 +1,5 @@
 use crate::utils;
-use std::ops::Range;
+use std::ops::RangeInclusive;
 use serde_json::json;
 use super::ServiceContext;
 use crate::{db, db::prelude::*};
@@ -10,12 +10,12 @@ use crate::utils::errors::ErrorCode;
 use tonic::{Request, Response, Status};
 use crate::{utils::errors::VaultError, grpc::api};
 
-const ARGON_PARALELLISM: Range<u32> = 1..2^24;
-const ARGON_TAG_LENGTH:  Range<u32> = 4..2^32;
-const ARGON_MEMORY:      Range<u32> = 8..2^32;
+const ARGON_PARALELLISM: RangeInclusive<u32> = 1..=16777216;   // 2^24
+const ARGON_TAG_LENGTH:  RangeInclusive<u32> = 4..=4294967295; // 2^32;
+const ARGON_MEMORY:      RangeInclusive<u32> = 8..=4294967295; // 2^32;
 const ARGON_VERSIONS:    [u32; 2] = [16, 19];
 const ARGON_MIN_COST:    u32 = 1;
-const BCRYPT_COST:       Range<u32> = 4..32;
+const BCRYPT_COST:       RangeInclusive<u32> = 4..=31;
 const PBKDF2_MIN_COST:   u32 = 1;
 const PBKDF2_MIN_OUTPUT: u32 = 10;
 
@@ -96,12 +96,6 @@ fn validate_request(policy: &Option<api::NewPolicy>) -> Result<(), VaultError> {
 
     if total_min > policy.max_length {
         return Err(ErrorCode::InvalidPolicy.with_msg("The minimum number of letters, numbers and symbols combined, must be less than or equal to the maximum password length"))
-    }
-
-    let total_max = policy.max_letters + policy.max_numbers + policy.max_symbols;
-
-    if total_max < policy.min_length {
-        return Err(ErrorCode::InvalidPolicy.with_msg("The maximum number of letters, numbers and symbols combined, must be greater than the minimum password length"))
     }
 
     if policy.mixed_case_required && policy.min_letters < 2 {

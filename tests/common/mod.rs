@@ -16,6 +16,9 @@ lazy_static! {
         Mutex::new(ctx)
     };
 
+    // Genereate a unique DB name for each test run to avoid collisions.
+    static ref DB_NAME: String = format!("Vault_Tests_{}", chrono::Utc::now().timestamp());
+
     // A async runtime needed to run the service being tested in. This ensures when a test terminates,
     // the service is still running and available for another test.
     static ref RT: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
@@ -78,13 +81,11 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         let mut map = HashMap::new();
-        map.insert("PORT", "50011");
+        map.insert("ADDRESS", "[::1]:50011");
         map.insert("KAFKA_SERVERS", "localhost:29092");
         map.insert("KAFKA_TIMEOUT", "5000");
-        map.insert("DB_NAME", "Vault_Tests");
-        map.insert("MONGO_CREDENTIALS", "");
-        map.insert("MONGO_URI", "mongodb://admin:changeme@localhost:27017");
-        map.insert("DISTRIBUTED_TRACING", "false");
+        map.insert("DB_NAME", &DB_NAME);
+        map.insert("MONGO_URI", "mongodb://admin:changeme@localhost:27017");//TODO: Probably not used, need template variant.
         map.insert("JAEGER_ENDPOINT", "");
 
         Self {
@@ -162,9 +163,9 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
     }
 
     // Connect a test client to the service - the closure is used in retry spawn below.
-    let port = ctx.config.get("PORT");
+    let address = ctx.config.get("ADDRESS");
     let connect = move || {
-        connect_channel(port)
+        connect_channel(address)
     };
 
     // Try to connect for up-to 1 minute.
@@ -175,7 +176,7 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
 
     // Need to establish an admin client too.
     let connect = move || {
-        connect_channel(port)
+        connect_channel(address)
     };
 
     // Try to connect for up-to 1 minute.
@@ -191,7 +192,7 @@ pub async fn start_vault(config: TestConfig) -> TestContextLock<'static> {
     ctx
 }
 
-async fn connect_channel(port: &str) -> Result<tonic::transport::Channel, tonic::transport::Error> {
+async fn connect_channel(address: &str) -> Result<tonic::transport::Channel, tonic::transport::Error> {
     let pem = tokio::fs::read("certs/ca.pem").await.unwrap();
     let ca = Certificate::from_pem(pem);
 
@@ -199,7 +200,7 @@ async fn connect_channel(port: &str) -> Result<tonic::transport::Channel, tonic:
         .ca_certificate(ca)
         .domain_name("example.com");
 
-    let uri = format!("http://[::]:{}", port).parse::<Uri>().unwrap();
+    let uri = format!("http://{}", address).parse::<Uri>().unwrap();
 
     Channel::builder(uri)
         .tls_config(tls)
@@ -211,6 +212,7 @@ async fn connect_channel(port: &str) -> Result<tonic::transport::Channel, tonic:
 
 pub mod helper {
     use super::TestContextLock;
+    use chrono::{DateTime, Utc};
     use tokio_retry::{Retry, strategy::FixedInterval};
     use tonic::{Request, Status};
     use vault::grpc::{internal, api::{self, vault_client::VaultClient}, common};
@@ -218,7 +220,7 @@ pub mod helper {
     ///
     /// Parse a numeric error code out of the body of an error Status response.
     ///
-    pub fn error_code(status: Status) -> u32 {
+    pub fn error_code(status: &Status) -> u32 {
         let raw = String::from_utf8(status.details().to_vec()).expect("Could not get an error code from the details of the status/response");
         raw.parse::<u32>().expect("The error code could not be parsed to a number")
     }
@@ -300,10 +302,10 @@ pub mod helper {
     pub async fn validate_password_assert_err(plain_text_password: &str, password_id: &str, ctx: &mut TestContextLock<'_>)
         -> Status {
 
-        ctx.client().validate_password(Request::new(api::ValidateRequest {
+        ctx.client().validate_password(api::ValidateRequest {
                 plain_text_password: plain_text_password.to_string(),
                 password_id: password_id.to_string(),
-            }))
+            })
             .await
             .err()
             .unwrap() // This is the effective assert.
@@ -316,11 +318,11 @@ pub mod helper {
     pub async fn create_policy_assert_ok(policy: api::NewPolicy, password_type: &str, activate: bool, ctx: &mut TestContextLock<'_>)
         -> api::CreatePolicyResponse {
 
-        let request = Request::new(api::CreatePolicyRequest{
+        let request = api::CreatePolicyRequest{
             policy: Some(policy),
             activate,
             password_type: Some(password_type.to_string())
-        });
+        };
 
         ctx.client().create_password_policy(request)
             .await
@@ -328,6 +330,47 @@ pub mod helper {
             .into_inner()
     }
 
+    ///
+    /// Test helper to call the create policy API when the response is expected to be an invalid policy.
+    ///
+    pub async fn create_policy_assert_invalid(policy: api::NewPolicy, ctx: &mut TestContextLock<'_>, expected_msg: &str) {
+
+        let request = api::CreatePolicyRequest{
+            policy: Some(policy),
+            activate: false,
+            password_type: None
+        };
+
+        let status = ctx.client().create_password_policy(request)
+            .await
+            .err()
+            .expect(expected_msg);
+
+        assert_eq!(status.message(), expected_msg);
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(error_code(&status), 1003 /* InvalidPolicy */);
+    }
+
+        ///
+    /// Test helper to call the create policy API when the response is expected to be an error code of some sort.
+    ///
+    pub async fn create_policy_assert_err(policy: api::NewPolicy, ctx: &mut TestContextLock<'_>, expected_msg: &str, expected_code: u32) {
+
+        let request = api::CreatePolicyRequest{
+            policy: Some(policy),
+            activate: false,
+            password_type: None
+        };
+
+        let status = ctx.client().create_password_policy(request)
+            .await
+            .err()
+            .expect(expected_msg);
+
+        assert_eq!(status.message(), expected_msg);
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(error_code(&status), expected_code);
+    }
 
     ///
     /// Test helper to call the get active policy API when the response is expected to be a success.
@@ -374,7 +417,7 @@ pub mod helper {
 
         let action_client = client.clone();
         let action = move || {
-            get_active_policy_assert_id(Some(password_type.to_string()), policy_id.to_string(), action_client.clone())
+            get_active_policy_for_wait(Some(password_type.to_string()), policy_id.to_string(), action_client.clone())
         };
 
         // Wait for up to 10 seconds for the active policy to be changed. Probing ever 100ms.
@@ -383,27 +426,28 @@ pub mod helper {
             .expect("The active policy was not updated in time, probably a Kafka-related issue")
     }
 
+    ///
+    /// Check if the active policy for the password_type matches the expected policy_id.
+    /// This version won't panic and is intended to be used by the wait_until...
+    ///
+    async fn get_active_policy_for_wait(password_type: Option<String>, expected_id: String, mut client: VaultClient<tonic::transport::Channel>) 
+        -> Result<api::Policy, String> {
 
-    async fn get_active_policy_assert_id(password_type: Option<String>, expected_id: String, mut client: VaultClient<tonic::transport::Channel>) 
-        -> Result<api::Policy, ()> {
+        let request = tonic::Request::new(api::GetActivePolicyRequest{ password_type });
 
-        let request = tonic::Request::new(vault::grpc::api::GetActivePolicyRequest{
-            password_type,
-        });
-
-        let actual = client.get_active_policy(request)
-            .await
-            .unwrap() // This is the effective assert.
-            .into_inner()
-            .policy
-            .unwrap();
-
-        match expected_id == actual.policy_id {
-            true  => Ok(actual),
-            false => {
-                // println!("Waiting till {} active, current active is {}...", expected_id, actual.policy_id);
-                Err(())
+        match client.get_active_policy(request).await {
+            Ok(response) => {
+                match response.into_inner().policy {
+                    Some(policy) => {
+                        match expected_id == policy.policy_id {
+                            true  => Ok(policy),
+                            false => Err(format!("Expected policy_id {} but was {}", expected_id, policy.policy_id)),
+                        }
+                    },
+                    None => Err(String::from("No policy returned")),
+                }
             },
+            Err(err) => Err(format!("{}", err)),
         }
     }
 
@@ -428,14 +472,135 @@ pub mod helper {
             mixed_case_required: true,
             reset_timeout_seconds: 30,
             prohibited_phrases: vec!("password".to_string()),
-            algorithm: Some(api::new_policy::Algorithm::ArgonPolicy(api::ArgonPolicy {
-                parallelism: 1,
-                tag_length: 16,
-                memory_size_kb: 8,
-                iterations: 1,
-                version: 19,
-                hash_type: 2,
-            })),
+            algorithm: Some(api::new_policy::Algorithm::ArgonPolicy(sensible_argon())),
         }
+    }
+
+    ///
+    /// Helper to return a valid argon algorithm definition.
+    ///
+    pub fn sensible_argon() -> api::ArgonPolicy {
+        api::ArgonPolicy {
+            parallelism: 1,
+            tag_length: 16,
+            memory_size_kb: 8,
+            iterations: 1,
+            version: 19,
+            hash_type: 2,
+        }
+    }
+
+    ///
+    /// Helper to return a valid bcrypt algorithm definition.
+    ///
+    pub fn sensible_bcrypt() -> api::BCryptPolicy {
+        api::BCryptPolicy {
+            version: 3 /* 2B */,
+            cost: 10,
+        }
+    }
+
+    pub fn sensible_pbkdf2() -> api::Pbkdf2Policy {
+        api::Pbkdf2Policy {
+            cost: 100,
+            output_len: 16,
+        }
+    }
+
+    ///
+    /// Helper so tests can create and use a password policy that's not the default (although similar).
+    ///
+    pub fn sensible_policy_with_argon(argon: api::ArgonPolicy) -> api::NewPolicy {
+        api::NewPolicy {
+            max_history_length: 3,
+            max_age_days: 30,
+            min_length: 5,
+            max_length: 32,
+            max_character_repeat: 4,
+            min_letters: 2,
+            max_letters: 32,
+            min_numbers: 2,
+            max_numbers: 32,
+            min_symbols: 1,
+            max_symbols: 32,
+            max_failures: 3,
+            lockout_seconds: 100,
+            mixed_case_required: true,
+            reset_timeout_seconds: 30,
+            prohibited_phrases: vec!("password".to_string()),
+            algorithm: Some(api::new_policy::Algorithm::ArgonPolicy(argon)),
+        }
+    }
+
+    ///
+    /// Helper so tests can create and use a password policy that's not the default (although similar).
+    ///
+    pub fn sensible_policy_with_bcrypt(bcrypt: api::BCryptPolicy) -> api::NewPolicy {
+        api::NewPolicy {
+            max_history_length: 3,
+            max_age_days: 30,
+            min_length: 5,
+            max_length: 32,
+            max_character_repeat: 4,
+            min_letters: 2,
+            max_letters: 32,
+            min_numbers: 2,
+            max_numbers: 32,
+            min_symbols: 1,
+            max_symbols: 32,
+            max_failures: 3,
+            lockout_seconds: 100,
+            mixed_case_required: true,
+            reset_timeout_seconds: 30,
+            prohibited_phrases: vec!("password".to_string()),
+            algorithm: Some(api::new_policy::Algorithm::BcryptPolicy(bcrypt)),
+        }
+    }
+
+        ///
+    /// Helper so tests can create and use a password policy that's not the default (although similar).
+    ///
+    pub fn sensible_policy_with_pbkdf2(pbkdf2: api::Pbkdf2Policy) -> api::NewPolicy {
+        api::NewPolicy {
+            max_history_length: 3,
+            max_age_days: 30,
+            min_length: 5,
+            max_length: 32,
+            max_character_repeat: 4,
+            min_letters: 2,
+            max_letters: 32,
+            min_numbers: 2,
+            max_numbers: 32,
+            min_symbols: 1,
+            max_symbols: 32,
+            max_failures: 3,
+            lockout_seconds: 100,
+            mixed_case_required: true,
+            reset_timeout_seconds: 30,
+            prohibited_phrases: vec!("password".to_string()),
+            algorithm: Some(api::new_policy::Algorithm::Pbkdf2Policy(pbkdf2)),
+        }
+    }
+
+    ///
+    /// Helper to extract the api::ArgonPolicy from an api::Policy.
+    ///
+    pub fn get_argon(policy: &api::Policy) -> Option<&api::ArgonPolicy> {
+        match &policy.algorithm {
+            Some(alg) => match alg {
+                api::policy::Algorithm::ArgonPolicy(argon) => Some(&argon),
+                api::policy::Algorithm::BcryptPolicy(_) => None,
+                api::policy::Algorithm::Pbkdf2Policy(_) => None,
+            },
+            None => None,
+        }
+    }
+
+    ///
+    /// Convert a &str in this format yyyy-mm-ddThh:MM:ssZ to a millisecond precision
+    /// epoch timestamp.
+    ///
+    pub fn utc_secs_as_epoch(utc: &str) -> u64 {
+        utc.parse::<DateTime<Utc>>().unwrap().timestamp_millis() as u64
     }
 }

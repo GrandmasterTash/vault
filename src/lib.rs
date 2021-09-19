@@ -129,14 +129,14 @@ pub async fn lib_main() -> Result<(), VaultError> {
 // }
 
 ///
-/// Sends a oneshot signal when a SIGINT is received (Ctrl+C)
+/// Sends a oneshot signal when a SIGTERM
 ///
 async fn wait_for_signal(tx: oneshot::Sender<()>) {
     // let _ = signal::ctrl_c().await;
     let mut stream = signal(SignalKind::terminate()).expect("Unix?");
     let _ = stream.recv().await;
 
-    tracing::info!("SIGINT received: shutting down");
+    tracing::info!("SIGTERM received: shutting down");
     let _ = tx.send(());
 }
 

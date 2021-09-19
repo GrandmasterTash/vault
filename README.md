@@ -1,9 +1,11 @@
 TODO: MongoDB tls.
-TODO: Dynamic trace level switching api?
 TODO: Clippy and audit and gutters.
 TODO: Document this file.
 TODO: Distributed tracing context propagation across Kafka messages.
+TODO: Dynamic trace level switching api?
+TODO: Passport interceptor to validate claims.
 TODO: AB testing?
+TODO: Run through manually the APIs and sort logging out. Make it readable.
 Document this is not an externally facing module and should be called by a sign-on orchistrator.
 Note: Handy https://github.com/bradleyjkemp/grpc-tools
 

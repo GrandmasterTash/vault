@@ -3,8 +3,6 @@ name = "vault"
 version = "0.1.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 # The binary is a lib wrapped as a binary - this allows us to write integration tests that can create
 # and initialise the app using the same code used in the binary.
 [lib]
@@ -70,4 +68,4 @@ tonic-build = "0.5"
 [dev-dependencies]
 parking_lot = "0.11.1"
 tokio-retry = "0.3.0"
-#more-asserts = "0.2.1"
+more-asserts = "0.2.1"

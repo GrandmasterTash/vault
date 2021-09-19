@@ -108,18 +108,18 @@ impl Default for ArgonPolicy {
 }
 
 
-impl FromStr for ArgonHashType {
-    type Err = VaultError;
+// impl FromStr for ArgonHashType {
+//     type Err = VaultError;
 
-    fn from_str(input: &str) -> Result<ArgonHashType, Self::Err> {
-        match input {
-            "argon2i"  => Ok(ArgonHashType::ARGON2I),
-            "argon2d"  => Ok(ArgonHashType::ARGON2D),
-            "argon2id" => Ok(ArgonHashType::ARGON2ID),
-            _          => Err(ErrorCode::UnknownAlgorithmVariant.with_msg(&format!("Unknown argon variant {}", input))),
-        }
-    }
-}
+//     fn from_str(input: &str) -> Result<ArgonHashType, Self::Err> {
+//         match input {
+//             "argon2i"  => Ok(ArgonHashType::ARGON2I),
+//             "argon2d"  => Ok(ArgonHashType::ARGON2D),
+//             "argon2id" => Ok(ArgonHashType::ARGON2ID),
+//             _          => Err(ErrorCode::UnknownAlgorithmVariant.with_msg(&format!("Unknown argon variant {}", input))),
+//         }
+//     }
+// }
 
 impl From<&ArgonPolicy> for api::ArgonPolicy {
     fn from(argon: &ArgonPolicy) -> Self {
