@@ -1,7 +1,7 @@
 use serde_json::json;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::{api, common}, model::{events::PasswordResetCompleted, password::Password, policy::Policy}, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::*}};
+use crate::{db, grpc::{api, common}, kafka::prelude::*, model::{events::PasswordResetCompleted, password::Password, policy::Policy}, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}}};
 
 
 pub async fn complete_reset_password(ctx: &ServiceContext, request: Request<api::CompleteResetRequest>)

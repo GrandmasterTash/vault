@@ -1,7 +1,7 @@
 use rand::Rng;
 use serde_json::json;
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, model::events::PasswordResetStarted, utils::{context::ServiceContext, kafka::prelude::*}};
+use crate::{db, grpc::api, kafka::prelude::*, model::events::PasswordResetStarted, utils::context::ServiceContext};
 
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const RESET_CODE_LEN: usize = 8;

@@ -1,7 +1,7 @@
 use serde_json::json;
 use super::ServiceContext;
-use crate::utils::{errors::ErrorCode, kafka::prelude::*};
 use tonic::{Request, Response, Status};
+use crate::{utils::errors::ErrorCode, kafka::prelude::*};
 use crate::{db, db::prelude::*, grpc::{api, common}, model::events::PolicyActivated, utils::errors::VaultError};
 
 pub async fn make_active(ctx: &ServiceContext, request: Request<api::MakeActiveRequest>)

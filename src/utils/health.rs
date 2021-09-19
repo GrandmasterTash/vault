@@ -2,8 +2,8 @@ use serde_json::json;
 use parking_lot::Mutex;
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
-use crate::{db::mongo, utils::kafka::Heartbeat};
-use super::{context::ServiceContext, kafka::prelude::*};
+use super::context::ServiceContext;
+use crate::{db::mongo, kafka::{self, prelude::*, Heartbeat}};
 use std::{sync::Arc, thread::JoinHandle as StdJoinHandle, time::Duration};
 use tonic_health::{server::HealthReporter, proto::health_server::{Health, HealthServer}};
 
@@ -88,7 +88,7 @@ async fn monitor(ctx: Arc<ServiceContext>, mut reporter: HealthReporter) {
 ///
 async fn kafka_healthy(ctx: Arc<ServiceContext>) -> bool {
     let duration: chrono::Duration = {
-        let lock = crate::utils::kafka::consumer::KAFKA_HEARTBEAT.lock();
+        let lock = kafka::consumer::KAFKA_HEARTBEAT.lock();
         let last_heartbeat: DateTime<Utc> = *lock;
         ctx.now() - last_heartbeat
     };

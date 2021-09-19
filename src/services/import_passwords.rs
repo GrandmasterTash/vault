@@ -4,7 +4,7 @@ use serde_json::json;
 use tokio_stream::wrappers::ReceiverStream;
 use api::import_password_request::Password;
 use tonic::{Request, Response, Status, Streaming};
-use crate::{db::{self, prelude::*}, grpc::api, model::{algorithm, events::PasswordHashed}, services::hash_password::hash_and_store_password, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::TOPIC_PASSWORD_HASHED}};
+use crate::{db::{self, prelude::*}, grpc::api, model::{algorithm, events::PasswordHashed}, kafka::prelude::*, services::hash_password::hash_and_store_password, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}}};
 
 type ImportPasswordsStream = ReceiverStream<Result<api::ImportPasswordResponse, Status>>;
 

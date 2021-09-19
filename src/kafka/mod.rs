@@ -3,7 +3,7 @@ pub mod producer;
 
 use serde::Serialize;
 use std::{sync::Arc, time::Duration};
-use super::{config::Configuration, context::ServiceContext};
+use crate::utils::{config::Configuration, context::ServiceContext};
 use rdkafka::{ClientConfig, admin::{AdminClient, AdminOptions, NewTopic, TopicReplication}, client::DefaultClientContext};
 
 pub mod prelude {

@@ -1,11 +1,12 @@
 use lazy_static::lazy_static;
+use vault::kafka::consumer::CONSUMER_TOPICS;
 use tokio_retry::{Retry, strategy::FixedInterval};
 use parking_lot::{Mutex, RawMutex, lock_api::MutexGuard};
 use rdkafka::{ClientConfig, client::DefaultClientContext};
 use rdkafka::admin::{AdminClient as KafkaAdminClient, AdminOptions};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Uri};
 use std::{collections::HashMap, thread::JoinHandle, time::Duration};
-use vault::{grpc::{internal::internal_client::InternalClient, api::vault_client::VaultClient}, utils::kafka::consumer::CONSUMER_TOPICS};
+use vault::grpc::{internal::internal_client::InternalClient, api::vault_client::VaultClient};
 
 lazy_static! {
     // A mutex around the TestContext to ensure only one test can be using the service at a time.
@@ -85,7 +86,7 @@ impl Default for TestConfig {
         map.insert("KAFKA_SERVERS", "localhost:29092");
         map.insert("KAFKA_TIMEOUT", "5000");
         map.insert("DB_NAME", &DB_NAME);
-        map.insert("MONGO_URI", "mongodb://admin:changeme@localhost:27017");//TODO: Probably not used, need template variant.
+        map.insert("MONGO_URI", "mongodb://$USERNAME:$PASSWORD@localhost:27017");
         map.insert("JAEGER_ENDPOINT", "");
 
         Self {

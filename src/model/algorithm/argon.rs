@@ -1,5 +1,5 @@
+use std::fs;
 use rand_core::OsRng;
-use std::{fs, str::FromStr};
 use derive_more::Display;
 use std::convert::TryFrom;
 use serde::{Deserialize, Serialize};

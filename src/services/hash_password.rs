@@ -1,6 +1,6 @@
 use serde_json::json;
 use tonic::{Request, Response, Status};
-use crate::{db, db::prelude::*, grpc::api, model::{events::PasswordHashed, policy::Policy}, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::TOPIC_PASSWORD_HASHED}};
+use crate::{db, db::prelude::*, grpc::api, model::{events::PasswordHashed, policy::Policy}, kafka::prelude::*, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}}};
 
 ///
 /// Validate the password against the current password policy.

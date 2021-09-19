@@ -1,3 +1,4 @@
+use crate::kafka;
 use mongodb::Database;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
@@ -30,7 +31,7 @@ impl ServiceContext {
             config: config.clone(),
             active_policies: RwLock::new(active_policies),
             time_provider: RwLock::new(TimeProvider::default()),
-            producer: crate::utils::kafka::producer::producer(&config),
+            producer: kafka::producer::producer(&config),
         }
     }
 
@@ -38,7 +39,7 @@ impl ServiceContext {
     /// Publish the JSON payload to the topic specified - if Kafka is configured.
     ///
     pub async fn send(&self, topic: &str, payload: Value) -> Result<(), VaultError> {
-        crate::utils::kafka::producer::send(
+        kafka::producer::send(
             &self.producer,
             &self.config,
             topic,

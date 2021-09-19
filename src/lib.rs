@@ -1,10 +1,10 @@
 mod db;
 mod model;
 mod services;
+pub mod kafka;
 pub mod utils;
 
 use db::mongo;
-use utils::kafka;
 use utils::health;
 use dotenv::dotenv;
 use std::sync::Arc;

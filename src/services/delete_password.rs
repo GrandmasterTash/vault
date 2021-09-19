@@ -3,7 +3,7 @@ use serde_json::json;
 use futures::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
-use crate::{db, grpc::api, grpc::api::delete_request::DeleteBy, model::events::PasswordDeleted, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}, kafka::prelude::TOPIC_PASSWORD_DELETED}};
+use crate::{db, grpc::api, grpc::api::delete_request::DeleteBy, kafka::prelude::*, model::events::PasswordDeleted, utils::{context::ServiceContext, errors::{ErrorCode, VaultError}}};
 
 type DeletePasswordsStream = ReceiverStream<Result<api::DeleteResponse, Status>>;
 

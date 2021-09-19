@@ -2,7 +2,7 @@ use serde_json::json;
 use super::ServiceContext;
 use chrono::{DateTime, Duration, Utc};
 use tonic::{Request, Response, Status};
-use crate::{db, grpc::api, grpc::common, model::{algorithm, events::{PasswordAttemptsExceeded, PasswordVerified}, password::Password, policy::Policy}, utils::{errors::{ErrorCode, VaultError}, kafka::prelude::*}};
+use crate::{db, grpc::api, grpc::common, kafka::prelude::*, model::{algorithm, events::{PasswordAttemptsExceeded, PasswordVerified}, password::Password, policy::Policy}, utils::errors::{ErrorCode, VaultError}};
 
 
 pub async fn validate_password(ctx: &ServiceContext, request: Request<api::ValidateRequest>)
