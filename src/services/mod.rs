@@ -36,7 +36,7 @@ impl Vault for Arc<ServiceContext> {
 
     #[instrument(skip(self, request), fields(response.status, remote_addr=?request.remote_addr().unwrap()))]
     async fn get_active_policy(&self, request: Request<api::GetActivePolicyRequest>) -> Result<Response<api::GetActivePolicyResponse>, Status> {
-        trace_status(get_active_policy::get_active_policy(&self, request).await)
+        trace_status(get_active_policy::get_active_policy(self, request).await)
     }
 
     #[instrument(skip(self, request), fields(response.status, remote_addr=?request.remote_addr().unwrap()))]

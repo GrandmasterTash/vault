@@ -15,7 +15,7 @@ pub async fn hash_password(ctx: &ServiceContext, request: Request<api::HashReque
     let password_id = hash_and_store_password(
         ctx,
         &request.plain_text_password,
-        &password_type,
+        password_type,
         request.password_id)
         .await?;
 
@@ -60,10 +60,10 @@ pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: 
             policy_for_hashing.hash_into_phc(&plain_text_password)
         })
         .await
-        .map_err(|e| VaultError::from(e))?
+        .map_err(VaultError::from)?
         ?;
 
-    let _result = db::password::upsert(&ctx, &password_id, &password_type, &phc, policy.max_history_length).await?;
+    let _result = db::password::upsert(ctx, &password_id, password_type, &phc, policy.max_history_length).await?;
 
     ctx.send(TOPIC_PASSWORD_HASHED, json!(PasswordHashed { password_id: password_id.clone() })).await?;
 

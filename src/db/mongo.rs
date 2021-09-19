@@ -56,17 +56,14 @@ async fn create_default_policy(db: &Database) -> Result<(), VaultError> {
 pub fn is_duplicate_err(err: &mongodb::error::Error) -> bool {
     let ec = err.clone();
     match *ec.kind {
-        ErrorKind::Write(sub_err) => match sub_err {
-            mongodb::error::WriteFailure::WriteError(we) => {
-                if we.code == 11000 /* Duplicate insert */ {
-                    return true
-                }
+        ErrorKind::Write(mongodb::error::WriteFailure::WriteError(we)) => {
+            if we.code == 11000 /* Duplicate insert */ {
+                return true
+            }
 
-                false
-            },
-            _ => false,
+            false
         },
-        _ => return false
+        _ => false
     }
 }
 

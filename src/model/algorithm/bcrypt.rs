@@ -3,6 +3,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use crate::{grpc::api, utils::errors::{ErrorCode, VaultError}};
 
+#[allow(clippy::enum_variant_names)] // Stop clippy complaining they all start with same name.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum BCryptVersion {
     TwoA,
@@ -19,7 +20,7 @@ pub struct BCryptPolicy {
 
 
 pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
-    bcrypt::verify(plain_text_password, phc).map_err(|e| VaultError::from(e))
+    bcrypt::verify(plain_text_password, phc).map_err(VaultError::from)
 }
 
 
@@ -40,8 +41,8 @@ pub fn hash_into_phc(bcrypt: &BCryptPolicy, plain_text_password: &str) -> Result
 ///
 pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, VaultError> {
 
-    let version = get_internal_version(&phc)?;
-    let hashed = bcrypt::HashParts::from_str(&phc)?;
+    let version = get_internal_version(phc)?;
+    let hashed = bcrypt::HashParts::from_str(phc)?;
     let salt = base64::decode_config(hashed.get_salt(), base64::BCRYPT).unwrap();
 
     Ok(bcrypt::hash_with_salt(plain_text_password, hashed.get_cost(), &salt)?.format_for_version(version))
@@ -53,7 +54,7 @@ pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, 
 /// Needed because their implementation of HashParts doesn't expose it :(
 ///
 fn get_internal_version(phc: &str) -> Result<bcrypt::Version, VaultError> {
-    let mut split = phc.split("$");
+    let mut split = phc.split('$');
     split.next(); /* Skip first it's blank */
 
     match split.next() {
@@ -66,7 +67,7 @@ fn get_internal_version(phc: &str) -> Result<bcrypt::Version, VaultError> {
                 _    => Err(ErrorCode::InvalidPHCFormat.with_msg(&format!("algorithm {} is un-handled", algorithm))),
             }
         },
-        None => return Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorithm")),
+        None => Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorithm")),
     }
 }
 
@@ -115,7 +116,7 @@ impl From<&api::new_policy::Algorithm> for Option<BCryptPolicy> {
                         1 => BCryptVersion::TwoX,
                         2 => BCryptVersion::TwoY,
                         3 => BCryptVersion::TwoB,
-                        unknown @ _ => panic!("Unhandled protobuf bcrypt version {}", unknown)
+                        unknown => panic!("Unhandled protobuf bcrypt version {}", unknown)
                     },
                     cost: bcrypt.cost,
                 })

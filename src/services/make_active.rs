@@ -11,13 +11,13 @@ pub async fn make_active(ctx: &ServiceContext, request: Request<api::MakeActiveR
 
     // Validate the policy exists.
     if !db::policy::policy_exists(&request.policy_id, ctx.db()).await? {
-        return Err(ErrorCode::PolicyNotFound.with_msg("The policy requested was not found"))?
+        return Err(ErrorCode::PolicyNotFound.with_msg("The policy requested was not found").into())
     }
 
     // Make it the active policy.
     make_active_by_id(
         &request.policy_id,
-        &request.password_type.as_deref().unwrap_or(DEFAULT),
+        request.password_type.as_deref().unwrap_or(DEFAULT),
         ctx).await?;
 
     Ok(Response::new(common::Empty::default()))

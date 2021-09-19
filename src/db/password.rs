@@ -13,10 +13,10 @@ pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultErr
 
     match db.collection::<Password>(PASSWORDS).find_one(filter, None)
         .await
-        .map_err(|e| VaultError::from(e))? {
+        .map_err(VaultError::from)? {
 
         Some(password) => Ok(password),
-        None => Err(ErrorCode::PasswordNotFound.with_msg("The password requested does not exist").into())
+        None => Err(ErrorCode::PasswordNotFound.with_msg("The password requested does not exist"))
     }
 }
 
@@ -29,9 +29,9 @@ pub async fn load_if_present(password_id: &str, db: &Database) -> Result<Option<
 
     let filter = doc!{ PASSWORD_ID: password_id };
 
-    Ok(db.collection::<Password>(PASSWORDS).find_one(filter, None)
+    db.collection::<Password>(PASSWORDS).find_one(filter, None)
         .await
-        .map_err(|e| VaultError::from(e))?)
+        .map_err(VaultError::from)
 }
 
 
@@ -71,7 +71,7 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
 
     ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, mongo::upsert())
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(())
 }
@@ -85,7 +85,7 @@ pub async fn delete(password_id: &str, db: &Database) -> Result<u64, VaultError>
 
     let result = db.collection::<Document>(PASSWORDS).delete_one(filter, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(result.deleted_count)
 }
@@ -99,7 +99,7 @@ pub async fn delete_by_type(password_type: &str, db: &Database) -> Result<u64, V
 
     let result = db.collection::<Document>(PASSWORDS).delete_many(filter, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(result.deleted_count)
 }
@@ -121,7 +121,7 @@ pub async fn store_reset_code(password_id: &str, reset_code: &str, ctx: &Service
 
     ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(())
 }
@@ -146,7 +146,7 @@ pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password)
 
     ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(())
 }
@@ -174,7 +174,7 @@ pub async fn record_success(ctx: &ServiceContext, password: &Password) -> Result
 
     ctx.db().collection::<Document>(PASSWORDS).update_one(filter, update, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(())
 }

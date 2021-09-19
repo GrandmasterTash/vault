@@ -56,7 +56,7 @@ impl Configuration {
 
         let mut output = String::new();
         for (k, v) in sorted {
-            write!(&mut output, "{:>23}: {}\n", k, v).unwrap();
+            writeln!(&mut output, "{:>23}: {}", k, v).unwrap();
         }
 
         Ok(output)

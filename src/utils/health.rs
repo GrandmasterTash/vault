@@ -63,8 +63,8 @@ async fn monitor(ctx: Arc<ServiceContext>, mut reporter: HealthReporter) {
         // We'll keep checking the heartbeat as each pulse ticks.
         tokio::time::sleep(Duration::from_millis(PULSE)).await;
 
-        let new_kafka = kafka_healthy(ctx.clone()).await;
-        let new_mongo = mongo_healthy(ctx.clone()).await;
+        let new_kafka = kafka_healthy().await;
+        let new_mongo = mongo_healthy().await;
         let health = new_kafka && new_mongo;
 
         if (new_kafka != kafka) || (new_mongo != mongo) {
@@ -86,34 +86,34 @@ async fn monitor(ctx: Arc<ServiceContext>, mut reporter: HealthReporter) {
 ///
 /// Compare the when the last heartbeat was received to the timeout configuration.
 ///
-async fn kafka_healthy(ctx: Arc<ServiceContext>) -> bool {
+async fn kafka_healthy() -> bool {
     let duration: chrono::Duration = {
         let lock = kafka::consumer::KAFKA_HEARTBEAT.lock();
         let last_heartbeat: DateTime<Utc> = *lock;
-        ctx.now() - last_heartbeat
+        Utc::now() - last_heartbeat
     };
 
     // Kafka heartbeat to be delayed and make it appear down.
     let limit = TIMEOUT as i64;
 
     tracing::trace!("Kafka hearbeat age {} < timeout {}", duration.num_milliseconds(), limit);
-    return duration.num_milliseconds() < limit
+    duration.num_milliseconds() < limit
 }
 
 ///
 /// Perform a MongoDB 'ping' to check the service status.
 ///
-async fn mongo_healthy(ctx: Arc<ServiceContext>) -> bool {
+async fn mongo_healthy() -> bool {
     let duration: chrono::Duration = {
         let lock = MONGODB_HEARTBEAT.lock();
         let last_heartbeat: DateTime<Utc> = *lock;
-        ctx.now() - last_heartbeat
+        Utc::now() - last_heartbeat
     };
 
     let limit = TIMEOUT as i64;
 
     tracing::trace!("MongoDB hearbeat age {} < timeout {}", duration.num_milliseconds(), limit);
-    return duration.num_milliseconds() < limit
+    duration.num_milliseconds() < limit
 }
 
 ///
@@ -152,7 +152,7 @@ fn start_mongo_heartbeat(ctx: Arc<ServiceContext>) -> StdJoinHandle<()> {
                 match mongo::ping(ctx.db()).await {
                     Ok(_doc) => {
                         let mut lock = MONGODB_HEARTBEAT.lock();
-                        *lock = ctx.now();
+                        *lock = Utc::now();
                     },
                     Err(err)   => {
                         tracing::trace!("Mongo ping failed: {:?}", err);

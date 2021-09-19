@@ -56,12 +56,12 @@ pub fn is_supported(phc: &str) -> bool {
 /// Parse the first part of the phc string and return the algorithm.
 ///
 fn select(phc: &str) -> Result<Algorithm, VaultError> {
-    let mut split = phc.split("$");
+    let mut split = phc.split('$');
     split.next(); /* Skip first it's blank */
 
     match split.next() {
         Some(algorithm) => Algorithm::from_str(algorithm),
-        None => return Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorithm")),
+        None => Err(ErrorCode::InvalidPHCFormat.with_msg("The PHC is invalid, there's no algorithm")),
     }
 }
 

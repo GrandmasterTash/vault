@@ -35,7 +35,7 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<()>) {
 
     let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", &format!("{}_{}", APP_NAME, generate_id()))
-        .set("bootstrap.servers", format!("{}", ctx.config().kafka_servers))
+        .set("bootstrap.servers", &ctx.config().kafka_servers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", format!("{}", ctx.config().kafka_timeout + 1000 /* Must be more than the publisher timeout aparently? */))
         .set("auto.offset.reset", "latest")
@@ -47,8 +47,8 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<()>) {
     let mut tpl = TopicPartitionList::new();
 
     for topic in CONSUMER_TOPICS {
-        tpl.add_partition_offset(&topic, partition, Offset::End)
-            .expect(&format!("Unable to assign offset for topic {}", topic));
+        tpl.add_partition_offset(topic, partition, Offset::End)
+            .unwrap_or_else(|_| panic!("Unable to assign offset for topic {}", topic));
     }
 
     consumer
@@ -89,7 +89,7 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<()>) {
                     match m.topic() {
                         TOPIC_POLICY_ACTIVATED      => handle_policy_activated(payload, ctx.clone()).await,
                         TOPIC_PASSWORD_TYPE_DELETED => handle_password_type_deleted(payload, ctx.clone()).await,
-                        TOPIC_VAULT_HEARTBEAT       => handle_heartbeat(ctx.clone()),
+                        TOPIC_VAULT_HEARTBEAT       => handle_heartbeat(),
                         _ => {},
                     };
                 }
@@ -104,14 +104,14 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<()>) {
 /// If a new password policy is activated (either by us or another instance of valut) then update
 /// our 'global' active policy so API requests are checked against it.
 ///
-#[instrument(skip(ctx))]
+#[instrument(skip(ctx, payload))]
 async fn handle_policy_activated(payload: &str, ctx: Arc<ServiceContext>) {
 
     match serde_json::from_str::<PolicyActivated>(payload) {
         Ok(payload) => {
             let policy = db::policy::load(&payload.policy_id, ctx.db())
                 .await
-                .expect(&format!("failed to load policy {} from the db", payload.policy_id));
+                .unwrap_or_else(|_| panic!("failed to load policy {} from the db", payload.policy_id));
 
             ctx.apply_policy(policy, &payload.password_type, payload.activated_on);
 
@@ -125,16 +125,16 @@ async fn handle_policy_activated(payload: &str, ctx: Arc<ServiceContext>) {
 ///
 /// Update the heartbeat timestamp.
 ///
-fn handle_heartbeat(ctx: Arc<ServiceContext>) {
+fn handle_heartbeat() {
     let mut lock = KAFKA_HEARTBEAT.lock();
-    *lock = ctx.now();
+    *lock = Utc::now(); // Don't use ctx.now() as tests can then upset the perceived heartbeat.
 }
 
 
 ///
 /// If a password type has been deleted from the system, remove any active policy in our cache for it.
 ///
-#[instrument(skip(ctx))]
+#[instrument(skip(ctx, payload))]
 async fn handle_password_type_deleted(payload: &str, ctx: Arc<ServiceContext>) {
 
     match serde_json::from_str::<PasswordTypeDeleted>(payload) {

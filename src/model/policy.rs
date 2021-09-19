@@ -166,13 +166,12 @@ impl Policy {
                 .with_msg(&format!("a password must not contain more than {} symbols", self.max_symbols)))
         }
 
-        if self.mixed_case_required {
-            if !plain_text_password.chars().any(|c| c.is_lowercase())
-                || !plain_text_password.chars().any(|c| c.is_uppercase()) {
+        if self.mixed_case_required &&
+            (!plain_text_password.chars().any(|c| c.is_lowercase())
+                || !plain_text_password.chars().any(|c| c.is_uppercase())) {
 
                 return Err(ErrorCode::NotMixedCase
                     .with_msg("a password must contain a mixture of upper and lower case"))
-            }
         }
 
         Ok(())
@@ -192,14 +191,13 @@ impl Policy {
             .unwrap_or(&Vec::new())
             .iter()
             .take(self.max_history_length as usize)
-            .find(|old_phc| {
+            .any(|old_phc| {
                 // Re-hash the new password with the phc of this old password.
-                let new_phc = algorithm::rehash(plain_text_password, old_phc).unwrap_or(String::default());
+                let new_phc = algorithm::rehash(plain_text_password, old_phc).unwrap_or_default();
 
                 // Compare the phc strings, if they are the same, it's the same password!
                 **old_phc == new_phc
-            })
-            .is_some();
+            });
 
         if used_before {
             return Err(ErrorCode::PasswordUsedBefore
@@ -228,9 +226,9 @@ impl Policy {
     ///
     pub fn hash_into_phc(&self, plain_text_password: &str) -> Result<String, VaultError> {
         match self.algorithm_type {
-            Algorithm::Argon  => argon::hash_into_phc(&self.argon_policy(), plain_text_password),
-            Algorithm::BCrypt => bcrypt::hash_into_phc(&self.bcrypt_policy(), plain_text_password),
-            Algorithm::PBKDF2 => pbkdf2::hash_into_phc(&self.pbkdf2_policy(), plain_text_password),
+            Algorithm::Argon  => argon::hash_into_phc(self.argon_policy(), plain_text_password),
+            Algorithm::BCrypt => bcrypt::hash_into_phc(self.bcrypt_policy(), plain_text_password),
+            Algorithm::PBKDF2 => pbkdf2::hash_into_phc(self.pbkdf2_policy(), plain_text_password),
         }
     }
 }
@@ -255,7 +253,7 @@ impl From<&Policy> for api::Policy {
             lockout_seconds:       policy.lockout_seconds,
             mixed_case_required:   policy.mixed_case_required,
             reset_timeout_seconds: policy.reset_timeout_seconds,
-            prohibited_phrases:    policy.prohibited_phrases.iter().cloned().collect(),
+            prohibited_phrases:    policy.prohibited_phrases.to_vec(),
             algorithm:              match policy.algorithm_type {
                 Algorithm::Argon  => Some(api::policy::Algorithm::ArgonPolicy(policy.argon_policy().into())),
                 Algorithm::BCrypt => Some(api::policy::Algorithm::BcryptPolicy(policy.bcrypt_policy().into())),

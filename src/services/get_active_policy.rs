@@ -7,7 +7,7 @@ pub async fn get_active_policy(ctx: &ServiceContext, request: Request<api::GetAc
     -> Result<Response<api::GetActivePolicyResponse>, Status> {
 
     let request = request.into_inner();
-    let password_type = request.password_type.unwrap_or(DEFAULT.to_string());
+    let password_type = request.password_type.unwrap_or_else(|| DEFAULT.to_string());
 
     let lock = ctx.active_policies();
     let active_policy = lock.get(&password_type);
@@ -19,7 +19,8 @@ pub async fn get_active_policy(ctx: &ServiceContext, request: Request<api::GetAc
             })),
 
         None => Err(ErrorCode::ActivePolicyNotFound
-            .with_msg(&format!("Unable to find an active policy for password type {}", password_type)))?
+            .with_msg(&format!("Unable to find an active policy for password type {}", password_type))
+            .into())
     }
 
 }

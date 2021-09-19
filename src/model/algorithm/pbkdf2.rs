@@ -21,7 +21,7 @@ impl Default for PBKDF2Policy {
 
 
 pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError> {
-    let parsed_hash = PasswordHash::new(&phc)?;
+    let parsed_hash = PasswordHash::new(phc)?;
     Ok(Pbkdf2.verify_password(plain_text_password.as_bytes(), &parsed_hash).is_ok())
 }
 
@@ -50,7 +50,7 @@ pub fn hash_into_phc(pbkdf2: &PBKDF2Policy, plain_text_password: &str) -> Result
 /// history to detect duplicates.
 ///
 pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, VaultError> {
-    let parsed_hash = PasswordHash::new(&phc)?;
+    let parsed_hash = PasswordHash::new(phc)?;
 
     let params = pbkdf2::Params {
         rounds: parsed_hash.params.get("i").expect("No rounds in phc").decimal().expect("rounds in phc was not numeric"),

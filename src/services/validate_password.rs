@@ -31,7 +31,7 @@ pub async fn validate_password(ctx: &ServiceContext, request: Request<api::Valid
     let plain_text_password = request.plain_text_password.clone();
     let valid = tokio::task::spawn_blocking(move || { algorithm::validate(&plain_text_password, &phc) })
         .await
-        .map_err(|e| VaultError::from(e))?
+        .map_err(VaultError::from)?
         ?;
 
     // If the password is not valid, bump the failure count in the db.

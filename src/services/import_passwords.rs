@@ -56,8 +56,8 @@ async fn import_internal(request: &api::ImportPasswordRequest, ctx: Arc<ServiceC
                 Password::PlainTextPassword(plain_text_password) => {
                     Ok(hash_and_store_password(
                         &ctx,
-                        &plain_text_password,
-                        &password_type,
+                        plain_text_password,
+                        password_type,
                         None)
                         .await?)
                 },
@@ -72,7 +72,7 @@ async fn import_internal(request: &api::ImportPasswordRequest, ctx: Arc<ServiceC
                     let password_id = utils::generate_id();
 
                     // Upsert the password into the database.
-                    let _result = db::password::upsert(&ctx, &password_id, &password_type, phc, policy.max_history_length).await?;
+                    let _result = db::password::upsert(&ctx, &password_id, password_type, phc, policy.max_history_length).await?;
 
                     ctx.send(TOPIC_PASSWORD_HASHED, json!(PasswordHashed { password_id: password_id.clone() })).await?;
 
@@ -80,7 +80,7 @@ async fn import_internal(request: &api::ImportPasswordRequest, ctx: Arc<ServiceC
                 },
             }
         },
-        None => return Err(ErrorCode::PasswordNotSpecified
+        None => Err(ErrorCode::PasswordNotSpecified
             .with_msg("The request must specify whether to import a plain text password or a phc")),
     }
 }

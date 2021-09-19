@@ -181,7 +181,7 @@ fn init_tracing(config: &Configuration) -> bool {
                     tracing::info!("Tracing already initialised: {}", err.to_string()); // Allowed error here - tests call this fn repeatedly.
             }
 
-            return true
+            true
         },
         None => {
             if let Err(err) = Registry::default()
@@ -191,7 +191,7 @@ fn init_tracing(config: &Configuration) -> bool {
                     tracing::info!("Tracing already initialised: {}", err.to_string()); // Allowed error here - tests call this fn repeatedly.
             }
 
-            return false
+            false
         }
     }
 }

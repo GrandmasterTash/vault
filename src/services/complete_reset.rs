@@ -38,11 +38,11 @@ pub async fn complete_reset_password(ctx: &ServiceContext, request: Request<api:
             policy_for_hashing.hash_into_phc(&plain_text_password)
         })
         .await
-        .map_err(|e| VaultError::from(e))?
+        .map_err(VaultError::from)?
         ?;
 
     // Update the password in the database.
-    let _result = db::password::upsert(&ctx, &password.password_id, &password.password_type, &phc, policy.max_history_length).await?;
+    let _result = db::password::upsert(ctx, &password.password_id, &password.password_type, &phc, policy.max_history_length).await?;
 
     ctx.send(TOPIC_PASSWORD_RESET_COMPLETED,
         json!(PasswordResetCompleted{ password_id: password.password_id.clone() })).await?;
@@ -74,5 +74,5 @@ fn reset_expired(ctx: &ServiceContext, password: &Password, policy: &Policy) -> 
     let duration: Duration = ctx.now() - reset_started_at;
 
     // Get the lock-out period from the active policy.
-    return duration.num_seconds() > policy.reset_timeout_seconds as i64
+    duration.num_seconds() > policy.reset_timeout_seconds as i64
 }

@@ -23,14 +23,13 @@ pub async fn delete_passwords(ctx: Arc<ServiceContext>, request: Request<Streami
 
     let mut stream = request.into_inner();
     let (tx, rx) = tokio::sync::mpsc::channel(4);
-    let ctx_clone = ctx.clone();
 
     // Spawn a new task to read the input stream and write to the output stream.
     tokio::spawn(async move {
         while let Some(request) = stream.next().await {
             match request {
                 Ok(request) => {
-                    let deleted_count = match delete_internal(&request, ctx_clone.clone()).await {
+                    let deleted_count = match delete_internal(&request, ctx.clone()).await {
                         Ok(count) => count,
                         Err(err) => {
                             tracing::error!("Failed to delete a password {:?} : {:?}", request, err);
@@ -59,7 +58,7 @@ async fn delete_internal(request: &api::DeleteRequest, ctx: Arc<ServiceContext>)
     let deleted_count = match &request.delete_by {
         Some(delete_by) => match delete_by {
             DeleteBy::PasswordId(password_id) => {
-                let count = db::password::delete(&password_id, ctx.db()).await?;
+                let count = db::password::delete(password_id, ctx.db()).await?;
 
                 ctx.send(TOPIC_PASSWORD_DELETED, json!(PasswordDeleted {
                     password_id: Some(password_id.clone()),
@@ -70,7 +69,7 @@ async fn delete_internal(request: &api::DeleteRequest, ctx: Arc<ServiceContext>)
             },
 
             DeleteBy::PasswordType(password_type) => {
-                let count = db::password::delete_by_type(&password_type, ctx.db()).await?;
+                let count = db::password::delete_by_type(password_type, ctx.db()).await?;
 
                 ctx.send(TOPIC_PASSWORD_DELETED, json!(PasswordDeleted {
                     password_id: None,

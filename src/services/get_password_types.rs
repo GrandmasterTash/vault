@@ -7,7 +7,7 @@ pub async fn get_password_types(ctx: &ServiceContext, _request: Request<common::
 
     let password_types = {
         let lock = ctx.active_policies();
-        lock.keys().map(|k| k.clone()).collect::<Vec<String>>()
+        lock.keys().cloned().collect::<Vec<String>>()
     };
 
     Ok(Response::new(api::GetPasswordTypesResponse { password_types }))

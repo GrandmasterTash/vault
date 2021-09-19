@@ -32,7 +32,7 @@ pub fn validate(phc: &str, plain_text_password: &str) -> Result<bool, VaultError
         1,  // Ignored - phc values are used.
         argon2::Version::V0x13)?;
 
-    let parsed_hash = argon2::PasswordHash::new(&phc).unwrap();
+    let parsed_hash = argon2::PasswordHash::new(phc).unwrap();
     match argon2::PasswordVerifier::verify_password(&algorithm, plain_text_password.as_bytes(), &parsed_hash) {
         Ok(_)  => Ok(true),
         Err(_) => Ok(false),
@@ -74,7 +74,7 @@ fn pepper() -> Result<String, VaultError> {
 pub fn rehash_using_phc(phc: &str, plain_text_password: &str) -> Result<String, VaultError> {
 
     // Extract the details from the phc to apply the same hashing computation to a new plain text password.
-    let parsed_hash = argon2::PasswordHash::new(&phc).unwrap();
+    let parsed_hash = argon2::PasswordHash::new(phc).unwrap();
     let salt = parsed_hash.salt.expect("Could not parse salt from phc");
     let iterations = parsed_hash.params.get("t").expect("No iterations in phc").decimal().expect("Iterations in phc not numeric");
     let memory_size_kb = parsed_hash.params.get("m").expect("No memory size in phc").decimal().expect("Memory size in phc not numeric");
@@ -152,7 +152,7 @@ impl From<&api::new_policy::Algorithm> for Option<ArgonPolicy> {
                         0 => ArgonHashType::ARGON2D,
                         1 => ArgonHashType::ARGON2I,
                         2 => ArgonHashType::ARGON2ID,
-                        unknown @ _ => panic!("Unhandled protobuf argon hash_type {}", unknown)
+                        unknown => panic!("Unhandled protobuf argon hash_type {}", unknown)
                     },
                 })
             },

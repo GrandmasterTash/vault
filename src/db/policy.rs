@@ -14,7 +14,7 @@ use crate::utils::errors::{ErrorCode, VaultError};
 pub async fn insert(policy: Policy, db: &Database) -> Result<(), VaultError> {
     let result = db.collection::<Policy>(POLICIES).insert_one(policy, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
 
     tracing::debug!("Insert policy with MongoDB object id {}", result.inserted_id);
@@ -80,9 +80,9 @@ pub async fn load_active(db: &Database)
             });
     }
 
-    if active_policies.len() == 0 {
+    if active_policies.is_empty() {
         return Err(ErrorCode::ActivePolicyNotFound
-            .with_msg(&format!("There were no configured active policies in the database")))
+            .with_msg("There were no configured active policies in the database"))
     }
 
     Ok(active_policies)
@@ -103,7 +103,7 @@ pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &Servi
     ctx.db().collection::<Document>(CONFIG)
         .update_one(filter, update, mongo::upsert())
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
 
     Ok(now)
 }
@@ -114,7 +114,7 @@ pub async fn policy_exists(policy_id: &str, db: &Database) -> Result<bool, Vault
     let count = db.collection::<Document>(POLICIES)
         .count_documents(filter, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
     Ok(count == 1)
 }
 
@@ -124,6 +124,6 @@ pub async fn delete_password_type(password_type: &str, db: &Database) -> Result<
     let result = db.collection::<Document>(CONFIG)
         .delete_one(filter, None)
         .await
-        .map_err(|e| VaultError::from(e))?;
+        .map_err(VaultError::from)?;
     Ok(result.deleted_count > 0)
 }
