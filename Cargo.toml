@@ -35,15 +35,21 @@ rand = "0.8.4"
 # For gRPC
 tonic = { version = "0.5.2", features = ["tls"] }
 tonic-health = "0.4.1"
+tonic-reflection = "0.2.0"
 prost = "0.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "signal"] }
 futures = { version = "0.3.15", default-features = false, features = ["alloc"] }
 tokio-stream = { version =  "0.1", features = ["net"] }
+tower = "0.4"
+
+# TODO: Temp - for debugging the thread-geddon when clients timeout.
+#thread-id = "4.0.0"
 
 # For Config.
 dotenv = "0.15.0"
 config = "0.11.0"
 ansi_term = "0.12.1"
+num_cpus = "1.13.0"
 
 # For Mongo. Beta required for Tokio 1.x
 mongodb = "2.0.0"
@@ -57,10 +63,13 @@ lazy_static = "1.4.0"
 
 # Hashing
 rand_core = "0.6.3"
-argon2 = "0.2.2"
+argon2 = "0.2.4"
 bcrypt = "0.10.1"
 pbkdf2 = "0.9.0"
+# Bump some transatives to non-yanked versions.
+password-hash = "0.3.2"
 base64 = "0.13.0"
+base64ct = "1.0.1"
 
 [build-dependencies]
 tonic-build = "0.5"

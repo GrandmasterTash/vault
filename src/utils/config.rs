@@ -10,6 +10,7 @@ use super::errors::VaultError;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Configuration {
     pub address: String,                   // The address and port to host the server on.
+    pub concurrency_limit: usize,          // The maximum number of requests to allow at once.
     pub kafka_servers: String,             // The Kafka brokers.
     pub kafka_timeout: i32,                // The Kafka message timeout in ms.
     pub db_name: String,                   // The MongoDB name to use.
@@ -29,6 +30,7 @@ impl Configuration {
 
         // Set defaults for settings that were not specified.
         cfg.set_default("address", "0.0.0.0:50011")?;
+        cfg.set_default("concurrency_limit", format!("{}", num_cpus::get()))?;
         cfg.set_default("kafka_servers", "localhost:29092")?;
         cfg.set_default("kafka_timeout", 5000)?;
         cfg.set_default("db_name", "Vault")?;

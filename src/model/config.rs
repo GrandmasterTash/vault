@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 ///
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
-    // config_id: String,            // Always 'SINGLETON' TODO: Until we have password groups/types.
     pub password_type: String, // Unique identifier.
     pub active_policy_id: String,
     pub activated_on: bson::DateTime

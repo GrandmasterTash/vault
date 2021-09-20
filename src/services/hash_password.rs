@@ -1,6 +1,13 @@
 use serde_json::json;
 use tonic::{Request, Response, Status};
 use crate::{db, db::prelude::*, grpc::api, model::{events::PasswordHashed, policy::Policy}, kafka::prelude::*, utils::{self, context::ServiceContext, errors::{ErrorCode, VaultError}}};
+use lazy_static::lazy_static;
+
+lazy_static! {
+    // Limit the number of CPU-bound tasks.
+    // TODO: If this fixes the perf issue - suggest the task spawning is done at a lower level and controlled there.
+    static ref SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::new(num_cpus::get());
+}
 
 ///
 /// Validate the password against the current password policy.
@@ -51,6 +58,9 @@ pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: 
     // perform it in the blocking thread pool not on the main event loop.
     let plain_text_password = plain_text_password.to_string();
     let policy_for_hashing = policy.clone();
+
+    // Limit how many requests can do this.
+    let a_permit = SEMAPHORE.acquire().await.unwrap();
     let phc = tokio::task::spawn_blocking(move || {
             // If this is an existing password, to check it's not been used before we need to load
             // the existing details from the DB.

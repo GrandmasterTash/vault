@@ -46,8 +46,14 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
+            # TODO: Pull from values.yaml
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            limits:
+              cpu: "500m"
+              memory: "150Mi"
+            requests:
+              cpu: "200m"
+              memory: "50Mi"
           volumeMounts:
           - name: certs
             mountPath: "/certs"

@@ -55,10 +55,10 @@ impl Default for Policy {
             created_on: bson::DateTime::from_chrono(Utc::now()),
             max_history_length: 5,
             max_age_days: 30,
-            min_length: 8,
+            min_length: 4,
             max_length: 128,
             max_character_repeat: 2,
-            min_letters: 1,
+            min_letters: 2,
             max_letters: 128,
             min_numbers: 1,
             max_numbers: 128,
@@ -353,7 +353,7 @@ mod tests {
         let result = policy.validate_pattern("A!1");
         let expected: Result<(), VaultError> = Err(VaultError::new(
             ErrorCode::PasswordTooShort,
-            "passwords must be at least 8 characters"));
+            "passwords must be at least 4 characters"));
 
         assert_eq!(result, expected);
     }
@@ -386,7 +386,7 @@ mod tests {
         let result = policy.validate_pattern("!123456789");
         let expected: Result<(), VaultError> = Err(VaultError::new(
             ErrorCode::NotEnoughLetters,
-            "a password must contain at least 1 letters"));
+            "a password must contain at least 2 letters"));
 
         assert_eq!(result, expected);
     }
@@ -417,8 +417,9 @@ mod tests {
     #[test]
     fn test_validate_pattern_max_numbers() {
         let mut policy = Policy::default();
+        policy.min_letters = 1;
         policy.max_numbers = 5;
-        let result = policy.validate_pattern("!a123456789");
+        let result = policy.validate_pattern("!a123456");
         let expected: Result<(), VaultError> = Err(VaultError::new(
             ErrorCode::TooManyNumbers,
             "a password must not contain more than 5 numbers"));
@@ -440,6 +441,7 @@ mod tests {
     #[test]
     fn test_validate_pattern_max_symbols() {
         let mut policy = Policy::default();
+        policy.min_letters = 1;
         policy.max_symbols = 6;
         let result = policy.validate_pattern("!a1!\"£$%^&*()");
         let expected: Result<(), VaultError> = Err(VaultError::new(

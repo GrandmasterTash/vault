@@ -99,7 +99,7 @@ impl Default for ArgonPolicy {
         ArgonPolicy {
             parallelism: 1,
             tag_length: 128,
-            memory_size_kb: 1024 * 16,
+            memory_size_kb: 8,
             iterations: 1,
             version: 19,
             hash_type: ArgonHashType::ARGON2ID

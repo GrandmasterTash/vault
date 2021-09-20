@@ -34,6 +34,7 @@ pub mod grpc {
 
     pub mod api {
         tonic::include_proto!("grpc.vault");
+        pub(crate) const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("vault_descriptor");
     }
 
     pub mod internal {
@@ -69,6 +70,12 @@ pub async fn lib_main() -> Result<(), VaultError> {
     // TLS set-up.
     let identity = init_tls().await?;
 
+    // Create a reflection service - this allows various tools to use the reflection api.
+    let reflection_service = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(grpc::api::FILE_DESCRIPTOR_SET)
+        .build()
+        .unwrap();
+
     // Create a MongoDB client and connect to it before proceeding.
     let db = mongo::get_mongo_db(APP_NAME, &config).await?;
 
@@ -95,8 +102,25 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let addr = config.address.parse().expect("Please provide a valid IP address to host the service on");
     tracing::info!("{} listening on {} and using tls", APP_NAME, addr);
 
+    // TODO: Maybe a timeout will protect against client timeout thread-geddon.
+    // let timeout_layer = tower::ServiceBuilder::new()
+    //     .timeout(Duration::from_secs(5)) // TODO: Make configurable.
+    //     .into_inner();
+
+    // TODO: This buffers up threads and memory. Will try load_shedding instead.
+    // Limit requests given our potentially long response times (for strong encryption) - this
+    // will also help avoid memory bloat for some algorithms.
+    let limit_layer = tower::limit::ConcurrencyLimitLayer::new(config.concurrency_limit);
+    // let limit_layer = tower::limit::GlobalConcurrencyLimitLayer::new(config.concurrency_limit);
+    // let limit_layer = tower::limit::RateLimitLayer::new(10, Duration::from_millis(1000));
+    // TODO: Raised a github issue https://github.com/hyperium/tonic/issues/769
+    // let shed_service
+
     let server = Server::builder()
+        // .layer(timeout_layer)
+        .layer(limit_layer)
         .tls_config(ServerTlsConfig::new().identity(identity))?
+        .add_service(reflection_service)
         .add_service(VaultServer::new(ctx.clone()))
         .add_service(InternalServer::new(ctx.clone()))
         .add_service(health_service)
@@ -116,17 +140,6 @@ pub async fn lib_main() -> Result<(), VaultError> {
 
     Ok(())
 }
-
-// ///
-// /// Simply return that we're running and alive.
-// ///
-// async fn liveliness_service() -> (HealthReporter, HealthServer<impl Health>) {
-//     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-//     health_reporter
-//         .set_serving::<LivelinessServer<Arc<ServiceContext>>>()
-//         .await;
-//     (health_reporter, health_service)
-// }
 
 ///
 /// Sends a oneshot signal when a SIGTERM
@@ -170,6 +183,7 @@ fn init_tracing(config: &Configuration) -> bool {
                 .with_service_name(APP_NAME)
                 .with_trace_config(trace::config().with_sampler(Sampler::AlwaysOn))
                 .with_agent_endpoint(endpoint)
+                // .with_max_packet_size(9216) // TODO: Need this during heavy load.
                 .install_batch(opentelemetry::runtime::Tokio)
                 .expect("Unable to build Jaeger pipeline");
 

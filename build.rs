@@ -1,10 +1,17 @@
+use std::{env, path::PathBuf};
+
 ///
 /// Cargo build script to generate the protobuf stubs.
 ///
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::compile_protos("proto/common.proto")?;
     tonic_build::compile_protos("proto/internal.proto")?;
-    tonic_build::compile_protos("proto/vault.proto")?;
+    // Generate a file descriptor for the reflection service.
+    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("vault_descriptor.bin");
+    tonic_build::configure()
+        .file_descriptor_set_path(&descriptor_path)
+        .format(true)
+        .compile(&["proto/vault.proto"], &["proto/"])?;
 
     // Uncomment this to generate the test client stubs - if desired.
     // tonic_build::configure()
