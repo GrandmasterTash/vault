@@ -55,6 +55,9 @@ pub async fn lib_main() -> Result<(), VaultError> {
     // Default log level to INFO if it's not specified.
     config::default_env("RUST_LOG", "INFO,librdkafka=OFF,rdkafka=OFF");
 
+    // Reduce the batch size exported to jaeger (if enabled) - under load it can often exceed the udp packet limit.
+    config::default_env("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", "100");
+
     // SIGINT/ctrl+c handling for graceful shutdown.
     let (signal_tx, signal_rx) = oneshot::channel();
     let _signal = tokio::spawn(wait_for_signal(signal_tx));
@@ -66,6 +69,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let tracing = init_tracing(&config);
 
     tracing::info!("{}\n{}", BANNER, config.fmt_console()?);
+    tracing::info!("Using {} cores.", num_cpus::get());
 
     // TLS set-up.
     let identity = init_tls().await?;
@@ -102,22 +106,11 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let addr = config.address.parse().expect("Please provide a valid IP address to host the service on");
     tracing::info!("{} listening on {} and using tls", APP_NAME, addr);
 
-    // TODO: Maybe a timeout will protect against client timeout thread-geddon.
-    // let timeout_layer = tower::ServiceBuilder::new()
-    //     .timeout(Duration::from_secs(5)) // TODO: Make configurable.
-    //     .into_inner();
-
-    // TODO: This buffers up threads and memory. Will try load_shedding instead.
     // Limit requests given our potentially long response times (for strong encryption) - this
     // will also help avoid memory bloat for some algorithms.
     let limit_layer = tower::limit::ConcurrencyLimitLayer::new(config.concurrency_limit);
-    // let limit_layer = tower::limit::GlobalConcurrencyLimitLayer::new(config.concurrency_limit);
-    // let limit_layer = tower::limit::RateLimitLayer::new(10, Duration::from_millis(1000));
-    // TODO: Raised a github issue https://github.com/hyperium/tonic/issues/769
-    // let shed_service
 
     let server = Server::builder()
-        // .layer(timeout_layer)
         .layer(limit_layer)
         .tls_config(ServerTlsConfig::new().identity(identity))?
         .add_service(reflection_service)
@@ -183,7 +176,8 @@ fn init_tracing(config: &Configuration) -> bool {
                 .with_service_name(APP_NAME)
                 .with_trace_config(trace::config().with_sampler(Sampler::AlwaysOn))
                 .with_agent_endpoint(endpoint)
-                // .with_max_packet_size(9216) // TODO: Need this during heavy load.
+                .with_max_packet_size(65000)
+                // .with_auto_split_batch(true)
                 .install_batch(opentelemetry::runtime::Tokio)
                 .expect("Unable to build Jaeger pipeline");
 

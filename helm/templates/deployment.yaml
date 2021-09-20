@@ -46,14 +46,13 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
-            # TODO: Pull from values.yaml
           resources:
             limits:
-              cpu: "500m"
-              memory: "150Mi"
+              # cpu: "{{ .Values.resources.limits.cpu }}"
+              memory: "{{ .Values.resources.limits.memory }}"
             requests:
-              cpu: "200m"
-              memory: "50Mi"
+              cpu: "{{ .Values.resources.requests.cpu }}"
+              memory: "{{ .Values.resources.requests.memory }}"
           volumeMounts:
           - name: certs
             mountPath: "/certs"

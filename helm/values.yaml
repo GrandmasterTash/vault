@@ -16,8 +16,10 @@ service:
 resources:
   limits:
     cpu: 4000m
+    memory: 150Mi
   requests:
-    cpu: 2000m
+    cpu: 200m
+    memory: 50Mi
 
 replicaCount: 1
 

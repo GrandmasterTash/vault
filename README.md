@@ -1,31 +1,5 @@
-Actions
-  * Upgrade argon2 to fix parallelism bug.
-  - Minimum tonic stack to replicate thread-geddon - then raise bug.
-  - Tidy-up main and lib.
-  - Where-ever spawn_blocking is used, link it to a global semaphore to stop explosions.
-  - Update jaeger if possible and re-enable during load tests.
-  - Repeat load testing and auto-scaling.
-
-
-BUG: Under load - blowing through container memory limit. How? Try rate_limiting.
-  Argon2 thread bug - need to bump to 3.0.1 and refactor some code.
-  Also need a configurable concurrency limit in tower.
-
-TODO: See if tower retry helps with surge overloading an instance (ie. gets us 100% success rate).
-
-TODO: Cant use max_packet_size on jaeger batch - something isn't right when update to 0.15....
 TODO: instrument - api:<method> db:<method> + add instrumentation for hashing in other thread.
-TODO: rate-limit the hash and verify functions - to avoid too many CPU-bound threads.
-
-TODO: Under heavy load see this.
-OpenTelemetry trace error occurred Other(Custom("failed to export batch ExportFailed(ThriftAgentError(ProtocolError { kind: SizeLimit, message: \"jaeger exporter payload size of 71025 bytes over max UDP packet size of 65000 bytes. Try setting a smaller batch size.\" }))"))
-
-TODO: release builds shouldn't include the internal proto's.
-
-MONITORING
-----------
-TODO: https://tower-rs.github.io/tower/tower/load/index.html
-
+TODO: release builds shouldn't include the internal proto's. Use release/cfg flag to remove them.
 TODO: Document this file.
 
 Nice to haves
