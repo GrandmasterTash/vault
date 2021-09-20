@@ -59,7 +59,7 @@ pub async fn hash_and_store_password(ctx: &ServiceContext, plain_text_password: 
     let plain_text_password = plain_text_password.to_string();
     let policy_for_hashing = policy.clone();
 
-    // Limit how many requests can do this.
+    // TODO: Limit how many requests can do this.
     let a_permit = SEMAPHORE.acquire().await.unwrap();
     let phc = tokio::task::spawn_blocking(move || {
             // If this is an existing password, to check it's not been used before we need to load

@@ -8,6 +8,7 @@ use vault::utils::errors::VaultError;
 fn main() -> Result<(), VaultError> {
     tokio::runtime::Builder::new_multi_thread()
         // .worker_threads(100)
+        // TODO: Need this.
         .max_blocking_threads(num_cpus::get()) // Our blocking threads are heavily CPU bound so protect
         // .max_blocking_threads(80) // Our blocking threads are heavily CPU bound so protect
         // .on_thread_start(||

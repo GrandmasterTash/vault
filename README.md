@@ -1,5 +1,13 @@
+Actions
+  * Upgrade argon2 to fix parallelism bug.
+  - Minimum tonic stack to replicate thread-geddon - then raise bug.
+  - Tidy-up main and lib.
+  - Where-ever spawn_blocking is used, link it to a global semaphore to stop explosions.
+  - Update jaeger if possible and re-enable during load tests.
+  - Repeat load testing and auto-scaling.
 
-BUG: Underload - blowing through container memory limit. How? Try rate_limiting.
+
+BUG: Under load - blowing through container memory limit. How? Try rate_limiting.
   Argon2 thread bug - need to bump to 3.0.1 and refactor some code.
   Also need a configurable concurrency limit in tower.
 
@@ -18,11 +26,11 @@ MONITORING
 ----------
 TODO: https://tower-rs.github.io/tower/tower/load/index.html
 
-TODO: MongoDB and Kafka tls + Kafka auth.
 TODO: Document this file.
 
 Nice to haves
 -------------
+- MongoDB and Kafka tls + Kafka auth.
 - Distributed tracing context propagation across Kafka messages.
 - Dynamic trace level switching api?
 - Passport interceptor to validate claims.
