@@ -74,8 +74,9 @@ package grpc.vault;
  * Unless stated otherwise, each API below will return a gRPC status of OK unless there has been an error
  * either with the request format or the processing of the request.
  *
- * Whenever a non-OK status is returned then the body/details of the response will be an ascii string
- * which is a unique detailled error code from the list at the top of src/utils/errors.rs.
+ * Whenever a non-OK status is returned then the header 'x-error-code' of the response will be an ascii
+ * string with the specific numeric error code that has occurred. These codes are detailled in the list
+ * at the top of src/utils/errors.rs.
  */
 service Vault {
     /*

@@ -1,8 +1,38 @@
-# This file is entended for local development. i.e. running vault outside of docker, in the IDE, etc.
-# To run vault inside of docker use the docker-compose-vault.yml instead.
+# This file is entended for running vault inside of docker. If you wish to run in the IDE, or commandline,
+# use the docker-compose.yml file instead.
 version: '3.7'
 
 services:
+
+  vault:
+    image: "vault"
+    build: .
+    container_name: vault
+    environment:
+      PORT: 50011
+      MONGO_URI: mongodb://$$USERNAME:$$PASSWORD@mongo:27017
+      MONGO_CREDENTIALS: /secrets/mongodb_credentials
+      KAFKA_SERVERS: kafka:29092
+      JAEGER_ENDPOINT: jaeger:6831
+    volumes:
+      - type: bind
+        source: ./certs
+        target: /certs
+      - type: bind
+        source: ./secrets
+        target: /secrets
+    networks:
+      - platform
+    ports:
+      - '50011:50011'
+    networks:
+      - docker_net
+    # docker inspect --format "{{json .State.Health }}" vault | jq
+    healthcheck:
+      test: ["CMD", "/grpc_health_probe", "-addr=:50011", "-tls", "-tls-no-verify", "-service=LIVELINESS"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo:
     image: 'mongo:4.4.6'
@@ -52,9 +82,9 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       # Use this line if you're running vault in docker.
-      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://kafka:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://kafka:29092
       # Use this line if you're running vault outside of docker.
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1

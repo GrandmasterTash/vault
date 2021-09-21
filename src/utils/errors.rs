@@ -1,7 +1,7 @@
 use bcrypt::BcryptError;
 use mongodb::bson;
 use tokio::task::JoinError;
-use tonic::{Code, Status};
+use tonic::{Code, Status, metadata::MetadataMap};
 use bson::document::ValueAccessError;
 use rdkafka::{error::KafkaError, message::OwnedMessage};
 
@@ -233,6 +233,8 @@ impl From<VaultError> for Status {
             TooManyFailedAttempts => Code::Unauthenticated,
         };
 
-        Status::with_details(code, error.message, format!("{}", error.error_code as u32).into())
+        let mut map = MetadataMap::new();
+        map.insert("x-error-code", format!("{}", error.error_code as u32).parse().unwrap());
+        Status::with_metadata(code, error.message, map)
     }
 }

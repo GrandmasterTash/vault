@@ -127,7 +127,7 @@ fn start_kafka_heartbeat(ctx: Arc<ServiceContext>) -> tokio::task::JoinHandle<()
             tracing::trace!("Sending Kafka heartbeat");
 
             // Send a heartbeat log - the kafka consumer will update the heartbeat timestamp.
-            if let Err(err) = ctx.send(TOPIC_VAULT_HEARTBEAT, json!(Heartbeat{})).await {
+            if let Err(err) = ctx.send_no_trace(TOPIC_VAULT_HEARTBEAT, json!(Heartbeat{})).await {
                 tracing::trace!("Unable to send Kafka heartbeat: {:?}", err);
             }
 

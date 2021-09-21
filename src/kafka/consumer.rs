@@ -104,7 +104,7 @@ pub async fn init_consumer(ctx: Arc<ServiceContext>, tx: mpsc::Sender<()>) {
 /// If a new password policy is activated (either by us or another instance of valut) then update
 /// our 'global' active policy so API requests are checked against it.
 ///
-#[instrument(skip(ctx, payload))]
+#[instrument(name="kafka:handle_policy_activated", skip(ctx, payload))]
 async fn handle_policy_activated(payload: &str, ctx: Arc<ServiceContext>) {
 
     match serde_json::from_str::<PolicyActivated>(payload) {
@@ -121,20 +121,10 @@ async fn handle_policy_activated(payload: &str, ctx: Arc<ServiceContext>) {
     };
 }
 
-
-///
-/// Update the heartbeat timestamp.
-///
-fn handle_heartbeat() {
-    let mut lock = KAFKA_HEARTBEAT.lock();
-    *lock = Utc::now(); // Don't use ctx.now() as tests can then upset the perceived heartbeat.
-}
-
-
 ///
 /// If a password type has been deleted from the system, remove any active policy in our cache for it.
 ///
-#[instrument(skip(ctx, payload))]
+#[instrument(name="kafka:handle_password_type_deleted", skip(ctx, payload))]
 async fn handle_password_type_deleted(payload: &str, ctx: Arc<ServiceContext>) {
 
     match serde_json::from_str::<PasswordTypeDeleted>(payload) {
@@ -147,4 +137,12 @@ async fn handle_password_type_deleted(payload: &str, ctx: Arc<ServiceContext>) {
         },
         Err(err) => tracing::warn!("Unable to process message on topic: {}: {}: {}", TOPIC_PASSWORD_TYPE_DELETED, payload, err),
     };
+}
+
+///
+/// Update the heartbeat timestamp.
+///
+fn handle_heartbeat() {
+    let mut lock = KAFKA_HEARTBEAT.lock();
+    *lock = Utc::now(); // Don't use ctx.now() as tests can then upset the perceived heartbeat.
 }

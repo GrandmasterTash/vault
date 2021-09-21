@@ -1,5 +1,4 @@
-# TODO: This is only here to test the hpa - it MUST not be present in the long run - it would expose the
-# vault service to the WORLD!
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -30,3 +29,4 @@ spec:
   - secretName: vault-tls
     hosts:
       - localhost
+{{- end }}

@@ -6,7 +6,7 @@ use crate::{db::{prelude::*, mongo}, model::password::Password, utils::context::
 ///
 /// Load the requested password from the database.
 ///
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:load", skip(db))]
 pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultError> {
 
     let filter = doc!{ PASSWORD_ID: password_id };
@@ -24,7 +24,7 @@ pub async fn load(password_id: &str, db: &Database) -> Result<Password, VaultErr
 ///
 /// Load the requested password from the database - if it exists.
 ///
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:load_if_present", skip(db))]
 pub async fn load_if_present(password_id: &str, db: &Database) -> Result<Option<Password>, VaultError> {
 
     let filter = doc!{ PASSWORD_ID: password_id };
@@ -38,7 +38,7 @@ pub async fn load_if_present(password_id: &str, db: &Database) -> Result<Option<
 ///
 /// Create or update the password specified.
 ///
-#[tracing::instrument(skip(ctx, phc))]
+#[tracing::instrument(name="db:upsert", skip(ctx, phc))]
 pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str, phc: &str, max_history: u32)
     -> Result<(), VaultError> {
 
@@ -77,6 +77,7 @@ pub async fn upsert(ctx: &ServiceContext, password_id: &str, password_type: &str
 }
 
 
+#[tracing::instrument(name="db:delete", skip(db))]
 pub async fn delete(password_id: &str, db: &Database) -> Result<u64, VaultError> {
 
     let filter = doc! {
@@ -91,6 +92,7 @@ pub async fn delete(password_id: &str, db: &Database) -> Result<u64, VaultError>
 }
 
 
+#[tracing::instrument(name="db:delete_by_type", skip(db))]
 pub async fn delete_by_type(password_type: &str, db: &Database) -> Result<u64, VaultError> {
 
     let filter = doc! {
@@ -105,6 +107,7 @@ pub async fn delete_by_type(password_type: &str, db: &Database) -> Result<u64, V
 }
 
 
+#[tracing::instrument(name="db:store_reset_code", skip(reset_code, ctx))]
 pub async fn store_reset_code(password_id: &str, reset_code: &str, ctx: &ServiceContext)
     -> Result<(), VaultError> {
 
@@ -129,7 +132,7 @@ pub async fn store_reset_code(password_id: &str, reset_code: &str, ctx: &Service
 ///
 /// Bump the failure count and, if not set yet, timestamp the failure date.
 ///
-#[tracing::instrument(skip(ctx, password), fields(password_id=?password.password_id))]
+#[tracing::instrument(name="db:increase_failure_count", skip(ctx, password), fields(password_id=?password.password_id))]
 pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password)
     -> Result<(), VaultError> {
 
@@ -154,7 +157,7 @@ pub async fn increase_failure_count(ctx: &ServiceContext, password: &Password)
 ///
 /// Clear any failure details and timestamp a successful validate operation.
 ///
-#[tracing::instrument(skip(ctx, password), fields(password_id=?password.password_id))]
+#[tracing::instrument(name="db:record_success", skip(ctx, password), fields(password_id=?password.password_id))]
 pub async fn record_success(ctx: &ServiceContext, password: &Password) -> Result<(), VaultError> {
 
     let filter = doc!{ PASSWORD_ID: &password.password_id };

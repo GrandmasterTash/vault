@@ -10,7 +10,7 @@ use crate::model::policy::{ActivePolicy, Policy};
 use crate::utils::context::ServiceContext;
 use crate::utils::errors::{ErrorCode, VaultError};
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:insert", skip(db))]
 pub async fn insert(policy: Policy, db: &Database) -> Result<(), VaultError> {
     let result = db.collection::<Policy>(POLICIES).insert_one(policy, None)
         .await
@@ -23,7 +23,7 @@ pub async fn insert(policy: Policy, db: &Database) -> Result<(), VaultError> {
 }
 
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:load", skip(db))]
 pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> {
 
     let result = db
@@ -38,7 +38,7 @@ pub async fn load(policy_id: &str, db: &Database) -> Result<Policy, VaultError> 
 }
 
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:load_all", skip(db))]
 pub async fn load_all(db: &Database) -> Result<Vec<Policy>, VaultError> {
 
     let cursor = db
@@ -56,7 +56,7 @@ pub async fn load_all(db: &Database) -> Result<Vec<Policy>, VaultError> {
 ///
 /// Using the Config singleton document in the database, load and return the current active password policy.
 ///
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:load_active", skip(db))]
 pub async fn load_active(db: &Database)
     -> Result<HashMap<String/* password_type */, ActivePolicy>, VaultError> {
 
@@ -88,7 +88,7 @@ pub async fn load_active(db: &Database)
     Ok(active_policies)
 }
 
-#[tracing::instrument(skip(ctx))]
+#[tracing::instrument(name="db:make_active_by_id", skip(ctx))]
 pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &ServiceContext) -> Result<DateTime<Utc>, VaultError> {
     let now = ctx.now();
     let filter = doc! { PASSWORD_TYPE: password_type };
@@ -108,7 +108,7 @@ pub async fn make_active_by_id(policy_id: &str, password_type: &str, ctx: &Servi
     Ok(now)
 }
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:policy_exists", skip(db))]
 pub async fn policy_exists(policy_id: &str, db: &Database) -> Result<bool, VaultError> {
     let filter = doc!{ POLICY_ID: policy_id };
     let count = db.collection::<Document>(POLICIES)
@@ -118,7 +118,7 @@ pub async fn policy_exists(policy_id: &str, db: &Database) -> Result<bool, Vault
     Ok(count == 1)
 }
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(name="db:delete_password_type", skip(db))]
 pub async fn delete_password_type(password_type: &str, db: &Database) -> Result<bool, VaultError> {
     let filter = doc!{ PASSWORD_TYPE: password_type };
     let result = db.collection::<Document>(CONFIG)

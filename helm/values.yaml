@@ -13,6 +13,11 @@ kafka:
 service:
   port: 50011
 
+# Do NOT enable this in production - vault is not designed as an edge service.
+# The ingress is here for local testing only.
+ingress:
+  enabled: false
+
 resources:
   limits:
     cpu: 4000m

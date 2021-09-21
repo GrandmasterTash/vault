@@ -1,5 +1,6 @@
 use std::fs;
 use tracing::info;
+use tracing::instrument;
 use crate::db::prelude::*;
 use mongodb::error::ErrorKind;
 use crate::model::config::Config;
@@ -12,6 +13,7 @@ use mongodb::{Client, Database, bson::{Document, doc}, options::{ClientOptions, 
 ///
 /// Run any schema-like updates against MongoDB that haven't been run yet.
 ///
+#[instrument(name="db:update_mongo", skip(db), fields(db_name=?db.name()))]
 pub async fn update_mongo(db: &Database) -> Result<(), VaultError> {
     create_init_indexes(db).await?;
     create_default_policy(db).await?;
@@ -19,6 +21,8 @@ pub async fn update_mongo(db: &Database) -> Result<(), VaultError> {
     Ok(())
 }
 
+
+#[instrument(name="db:create_init_indexes", skip(db))]
 async fn create_init_indexes(db: &Database) -> Result<(), VaultError> {
     // Note: the current driver doesn't yet support creating indexes on collections, so the dbcommand must be used instead.
     // https://docs.mongodb.com/manual/reference/command/createIndexes/#createindexes
@@ -35,6 +39,7 @@ async fn create_init_indexes(db: &Database) -> Result<(), VaultError> {
 ///
 /// Create a policy with an id of DEFAULT.
 ///
+#[instrument(name="db:create_default_policy", skip(db))]
 async fn create_default_policy(db: &Database) -> Result<(), VaultError> {
     let result = db.collection::<Policy>("Policies")
         .insert_one(Policy::default(), None).await;
@@ -70,6 +75,7 @@ pub fn is_duplicate_err(err: &mongodb::error::Error) -> bool {
 ///
 /// Create the default config document IF IT DOESN'T EXIST.
 ///
+#[instrument(name="db:create_default_config", skip(db))]
 async fn create_default_config(db: &Database) -> Result<(), VaultError> {
     let _ignored = db.collection::<Config>("Config")
         .insert_one(Config::default(), None).await;
@@ -107,7 +113,6 @@ pub async fn get_mongo_db(app_name: &str, config: &Configuration) -> Result<Data
     info!("Connected to MongoDB");
     Ok(db)
 }
-
 
 pub async fn ping(db: &Database) -> Result<Document, VaultError> {
     Ok(db.run_command(doc! { "ping": 1 }, None).await?)

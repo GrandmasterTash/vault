@@ -222,8 +222,12 @@ pub mod helper {
     /// Parse a numeric error code out of the body of an error Status response.
     ///
     pub fn error_code(status: &Status) -> u32 {
-        let raw = String::from_utf8(status.details().to_vec()).expect("Could not get an error code from the details of the status/response");
-        raw.parse::<u32>().expect("The error code could not be parsed to a number")
+        let error_code = status.metadata()
+            .get("x-error-code")
+            .expect("Could not get an error code from the details of the status/response")
+            .to_str()
+            .expect("The header value was not a string");
+        error_code.parse::<u32>().expect("The error code could not be parsed to a number")
     }
 
     ///

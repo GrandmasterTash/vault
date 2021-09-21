@@ -36,10 +36,26 @@ impl ServiceContext {
     }
 
     ///
-    /// Publish the JSON payload to the topic specified - if Kafka is configured.
+    /// Publish the JSON payload to the topic specified.
     ///
     pub async fn send(&self, topic: &str, payload: Value) -> Result<(), VaultError> {
         kafka::producer::send(
+            &self.producer,
+            &self.config,
+            topic,
+            &payload.to_string(),
+            1).await?;
+
+        Ok(())
+    }
+
+    ///
+    /// Publish the JSON payload to the topic specified.
+    ///
+    /// This version won't record a trace - should be used only for heartbeat!
+    ///
+    pub async fn send_no_trace(&self, topic: &str, payload: Value) -> Result<(), VaultError> {
+        kafka::producer::send_no_trace(
             &self.producer,
             &self.config,
             topic,

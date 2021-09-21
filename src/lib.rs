@@ -69,7 +69,7 @@ pub async fn lib_main() -> Result<(), VaultError> {
     let tracing = init_tracing(&config);
 
     tracing::info!("{}\n{}", BANNER, config.fmt_console()?);
-    tracing::info!("Using {} cores.", num_cpus::get());
+    tracing::info!("{} cores available, lucky me.", num_cpus::get());
 
     // TLS set-up.
     let identity = init_tls().await?;

@@ -2,7 +2,6 @@ pub mod mongo;
 pub mod policy;
 pub mod password;
 
-// This ensures only one persisted document exists.
 pub mod prelude {
     // Default ID's / password_types.
     pub const DEFAULT: &str = "DEFAULT";
