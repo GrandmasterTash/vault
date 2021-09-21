@@ -10,7 +10,7 @@ metadata:
   namespace: default
 spec:
   rules:
-  # Used in the mkcert, and in /etc/hosts
+  # Must exist in the cert.pem created with mkcert (for example).
   # - host: example.test
   - host: localhost
     http:
@@ -23,9 +23,6 @@ spec:
             port:
               number: {{ .Values.service.port }}
   tls:
-  # # This secret must exist beforehand
-  # # The cert must also contain the subj-name grpctest.dev.mydomain.com
-  # # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
   - secretName: vault-tls
     hosts:
       - localhost
